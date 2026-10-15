@@ -13,6 +13,7 @@ let lastBilliardTurnIndex = -1;
 
 socket.on('billiardUpdate', (state) => {
     window.currentActiveTableId = state.tableId;
+    if (window.setVoiceTable && state.tableId) window.setVoiceTable(state.tableId);
     window.isSpectating = !!state.isSpectator;
     isMyTurnBilliard = !state.isSpectator && (state.players[state.turnIndex] === socket.id);
     isBallInHand = !state.isSpectator && state.ballInHand;

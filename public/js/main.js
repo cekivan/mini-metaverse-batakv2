@@ -13,13 +13,55 @@ let currentRoom = "sokak";
 // WASD Hareket Değişkenleri (Akıcı Yürüyüş)
 let keys = { w: false, a: false, s: false, d: false };
 
-// --- 1. ŞİFRE VE İSİM GİRİŞ İŞLEMLERİ ---
+// --- 1. ŞİFRE, İSİM, KAYIT VE ŞİFRE DEĞİŞTİRME İŞLEMLERİ ---
 window.selectedGender = 'male';
+window.selectedRegisterGender = 'male';
 
-function selectLoginGender(gender) {
+function switchAuthTab(tab) {
+    const loginForm = document.getElementById('loginFormContainer');
+    const registerForm = document.getElementById('registerFormContainer');
+    const tabBtnLogin = document.getElementById('tabBtnLogin');
+    const tabBtnRegister = document.getElementById('tabBtnRegister');
+    const loginErr = document.getElementById('loginError');
+    const regErr = document.getElementById('regError');
+
+    if (loginErr) loginErr.style.display = 'none';
+    if (regErr) regErr.style.display = 'none';
+
+    if (tab === 'register') {
+        if (loginForm) loginForm.style.display = 'none';
+        if (registerForm) registerForm.style.display = 'block';
+        if (tabBtnLogin) {
+            tabBtnLogin.style.background = 'transparent';
+            tabBtnLogin.style.color = '#94a3b8';
+        }
+        if (tabBtnRegister) {
+            tabBtnRegister.style.background = '#10b981';
+            tabBtnRegister.style.color = 'white';
+        }
+        const regName = document.getElementById('regUsernameInput');
+        if (regName) regName.focus();
+    } else {
+        if (registerForm) registerForm.style.display = 'none';
+        if (loginForm) loginForm.style.display = 'block';
+        if (tabBtnLogin) {
+            tabBtnLogin.style.background = '#3b82f6';
+            tabBtnLogin.style.color = 'white';
+        }
+        if (tabBtnRegister) {
+            tabBtnRegister.style.background = 'transparent';
+            tabBtnRegister.style.color = '#94a3b8';
+        }
+        const userInp = document.getElementById('usernameInput');
+        if (userInp) userInp.focus();
+    }
+}
+
+function selectRegisterGender(gender) {
+    window.selectedRegisterGender = gender;
     window.selectedGender = gender;
-    const btnMale = document.getElementById('genderBtnMale');
-    const btnFemale = document.getElementById('genderBtnFemale');
+    const btnMale = document.getElementById('regGenderBtnMale');
+    const btnFemale = document.getElementById('regGenderBtnFemale');
     if (gender === 'female') {
         if (btnFemale) {
             btnFemale.style.border = '2px solid #ec4899';
@@ -44,12 +86,148 @@ function selectLoginGender(gender) {
         }
     }
 }
+function selectLoginGender(g) { selectRegisterGender(g); }
 
 function attemptLogin() {
-    let pass = document.getElementById('passwordInput').value;
-    let name = document.getElementById('usernameInput').value.trim();
-    if (name === "") { alert("Lütfen oyunda gözükecek isminizi yazın!"); return; }
-    socket.emit('login', { pass: pass, name: name, gender: window.selectedGender || 'male' });
+    let name = (document.getElementById('usernameInput')?.value || "").trim();
+    let pass = (document.getElementById('passwordInput')?.value || "").trim();
+    const err = document.getElementById('loginError');
+
+    if (!name) {
+        if (err) {
+            err.innerHTML = "❌ Lütfen kullanıcı adınızı yazın!";
+            err.style.display = 'block';
+        }
+        return;
+    }
+    if (pass.length < 3) {
+        if (err) {
+            err.innerHTML = "❌ Şifreniz en az 3 karakter olmalıdır!";
+            err.style.display = 'block';
+        }
+        return;
+    }
+    if (err) err.style.display = 'none';
+    socket.emit('login', { name: name, pass: pass });
+}
+
+function attemptRegister() {
+    let name = (document.getElementById('regUsernameInput')?.value || "").trim();
+    let pass = (document.getElementById('regPasswordInput')?.value || "").trim();
+    let passConfirm = (document.getElementById('regPasswordConfirmInput')?.value || "").trim();
+    const err = document.getElementById('regError');
+
+    if (!name || name.length < 2) {
+        if (err) {
+            err.innerHTML = "❌ Kullanıcı adı en az 2 karakter olmalıdır!";
+            err.style.display = 'block';
+        }
+        return;
+    }
+    if (name.length > 20) {
+        if (err) {
+            err.innerHTML = "❌ Kullanıcı adı en fazla 20 karakter olabilir!";
+            err.style.display = 'block';
+        }
+        return;
+    }
+    if (pass.length < 3) {
+        if (err) {
+            err.innerHTML = "❌ Şifre en az 3 karakter olmalıdır!";
+            err.style.display = 'block';
+        }
+        return;
+    }
+    if (pass !== passConfirm) {
+        if (err) {
+            err.innerHTML = "❌ Şifreler eşleşmiyor! Lütfen iki şifreyi de aynı girin.";
+            err.style.display = 'block';
+        }
+        return;
+    }
+    if (err) err.style.display = 'none';
+    socket.emit('register', {
+        name: name,
+        pass: pass,
+        gender: window.selectedRegisterGender || 'male'
+    });
+}
+
+// Şifre Değiştirme Fonksiyonları (Oyun İçi)
+function openChangePasswordModal() {
+    const modal = document.getElementById('changePasswordModal');
+    const oldP = document.getElementById('cpOldPassword');
+    const newP = document.getElementById('cpNewPassword');
+    const confirmP = document.getElementById('cpNewPasswordConfirm');
+    const status = document.getElementById('changePasswordStatus');
+
+    if (oldP) oldP.value = '';
+    if (newP) newP.value = '';
+    if (confirmP) confirmP.value = '';
+    if (status) {
+        status.style.display = 'none';
+        status.innerHTML = '';
+    }
+
+    if (modal) {
+        modal.style.display = 'flex';
+        if (oldP) oldP.focus();
+    }
+}
+
+function closeChangePasswordModal() {
+    const modal = document.getElementById('changePasswordModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function submitChangePassword() {
+    const oldP = (document.getElementById('cpOldPassword')?.value || "").trim();
+    const newP = (document.getElementById('cpNewPassword')?.value || "").trim();
+    const confirmP = (document.getElementById('cpNewPasswordConfirm')?.value || "").trim();
+    const status = document.getElementById('changePasswordStatus');
+
+    if (!oldP) {
+        showPasswordChangeFeedback(false, "❌ Lütfen mevcut eski şifrenizi girin!");
+        return;
+    }
+    if (newP.length < 3) {
+        showPasswordChangeFeedback(false, "❌ Yeni şifre en az 3 karakter olmalıdır!");
+        return;
+    }
+    if (newP === oldP) {
+        showPasswordChangeFeedback(false, "❌ Yeni şifre eskisiyle aynı olamaz!");
+        return;
+    }
+    if (newP !== confirmP) {
+        showPasswordChangeFeedback(false, "❌ Yeni şifreler eşleşmiyor!");
+        return;
+    }
+
+    if (status) {
+        status.style.display = 'block';
+        status.style.background = 'rgba(59, 130, 246, 0.2)';
+        status.style.border = '1px solid #3b82f6';
+        status.style.color = '#93c5fd';
+        status.innerHTML = '⏳ Şifre güncelleniyor...';
+    }
+
+    socket.emit('changePassword', { oldPass: oldP, newPass: newP });
+}
+
+function showPasswordChangeFeedback(success, message) {
+    const status = document.getElementById('changePasswordStatus');
+    if (!status) return;
+    status.style.display = 'block';
+    if (success) {
+        status.style.background = 'rgba(16, 185, 129, 0.2)';
+        status.style.border = '1px solid #10b981';
+        status.style.color = '#6ee7b7';
+    } else {
+        status.style.background = 'rgba(239, 68, 68, 0.2)';
+        status.style.border = '1px solid #ef4444';
+        status.style.color = '#fca5a5';
+    }
+    status.innerHTML = message;
 }
 
 let myMoney = 100;
@@ -1299,10 +1477,40 @@ socket.on('playerAvatarChange', (data) => {
     }
 });
 
-socket.on('loginFailed', () => {
+socket.on('loginFailed', (reason) => {
     const err = document.getElementById('loginError');
-    err.style.display = 'block';
-    setTimeout(() => { err.style.display = 'none'; }, 3000);
+    if (err) {
+        err.innerHTML = reason || "❌ Yanlış şifre!";
+        err.style.display = 'block';
+    } else {
+        alert(reason);
+    }
+});
+
+socket.on('registerFailed', (reason) => {
+    const err = document.getElementById('regError');
+    if (err) {
+        err.innerHTML = reason || "❌ Kayıt başarısız!";
+        err.style.display = 'block';
+    } else {
+        alert(reason);
+    }
+});
+
+socket.on('passwordChangeResult', (data) => {
+    if (!data) return;
+    showPasswordChangeFeedback(data.success, data.message);
+    if (data.success) {
+        const oldP = document.getElementById('cpOldPassword');
+        const newP = document.getElementById('cpNewPassword');
+        const confirmP = document.getElementById('cpNewPasswordConfirm');
+        if (oldP) oldP.value = '';
+        if (newP) newP.value = '';
+        if (confirmP) confirmP.value = '';
+        setTimeout(() => {
+            closeChangePasswordModal();
+        }, 1600);
+    }
 });
 
 // --- 2. SANALİKA TARZI BALONCUKLAR & SOHBET GEÇMİŞİ ---
@@ -1411,6 +1619,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (modalHeader && gameModal) {
         modalHeader.addEventListener('mousedown', (e) => {
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
             isModalDragging = true;
             mStartX = e.clientX; mStartY = e.clientY;
 
@@ -1440,6 +1649,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const usernameInput = document.getElementById('usernameInput');
     if (passwordInput) passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptLogin(); });
     if (usernameInput) usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptLogin(); });
+
+    const regUserInput = document.getElementById('regUsernameInput');
+    const regPassInput = document.getElementById('regPasswordInput');
+    const regPassConfirmInput = document.getElementById('regPasswordConfirmInput');
+    if (regUserInput) regUserInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptRegister(); });
+    if (regPassInput) regPassInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptRegister(); });
+    if (regPassConfirmInput) regPassConfirmInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptRegister(); });
+
+    const cpOld = document.getElementById('cpOldPassword');
+    const cpNew = document.getElementById('cpNewPassword');
+    const cpConfirm = document.getElementById('cpNewPasswordConfirm');
+    if (cpOld) cpOld.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitChangePassword(); });
+    if (cpNew) cpNew.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitChangePassword(); });
+    if (cpConfirm) cpConfirm.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitChangePassword(); });
 
     requestAnimationFrame(gameLoop);
 });
@@ -1640,6 +1863,7 @@ function handleAddBotToTable(specificTableId) {
 
 function joinSelectedTable(tableId) {
     window.currentActiveTableId = tableId;
+    if (window.setVoiceTable) window.setVoiceTable(tableId);
     socket.emit('joinTable', tableId);
     closeTableSelectModal();
     const modal = document.getElementById('gameModal');
@@ -1769,6 +1993,100 @@ socket.on('leaderboardData', (data) => {
     }
 });
 
+// --- DEVAM EDEN OYUNA DÖNÜŞ (RECONNECT / F5 KORUMASI) ---
+pendingReconnectTableId = null;
+
+socket.on('promptReconnect', (data) => {
+    if (!data || !data.tableId) return;
+    pendingReconnectTableId = data.tableId;
+    let modal = document.getElementById('reconnectPromptModal');
+    let tNameEl = document.getElementById('reconnectPromptTableName');
+    if (tNameEl) tNameEl.innerText = data.tableName || "Masa";
+    if (modal) modal.style.display = 'flex';
+});
+
+function confirmReconnect() {
+    let modal = document.getElementById('reconnectPromptModal');
+    if (modal) modal.style.display = 'none';
+    if (pendingReconnectTableId) {
+        socket.emit('acceptReconnect', pendingReconnectTableId);
+        pendingReconnectTableId = null;
+    }
+}
+window.confirmReconnect = confirmReconnect;
+
+function dismissReconnect() {
+    let modal = document.getElementById('reconnectPromptModal');
+    if (modal) modal.style.display = 'none';
+    if (pendingReconnectTableId) {
+        socket.emit('declineReconnect', pendingReconnectTableId);
+        pendingReconnectTableId = null;
+    }
+}
+window.dismissReconnect = dismissReconnect;
+
+// --- GÜNLÜK GÖREVLER (DAILY QUESTS) ---
+function openDailyQuestsModal() {
+    socket.emit('getDailyQuests');
+    const modal = document.getElementById('dailyQuestsModal');
+    if (modal) modal.style.display = 'flex';
+}
+window.openDailyQuestsModal = openDailyQuestsModal;
+
+function closeDailyQuestsModal() {
+    const modal = document.getElementById('dailyQuestsModal');
+    if (modal) modal.style.display = 'none';
+}
+window.closeDailyQuestsModal = closeDailyQuestsModal;
+
+function claimDailyQuest(questId) {
+    if (!questId) return;
+    socket.emit('claimDailyQuest', questId);
+    if (window.playSound) window.playSound('coin');
+}
+window.claimDailyQuest = claimDailyQuest;
+
+socket.on('dailyQuestsData', (quests) => {
+    const container = document.getElementById('dailyQuestsContainer');
+    if (!container) return;
+
+    if (!quests || quests.length === 0) {
+        container.innerHTML = "<div style='color:#94a3b8; font-style:italic; padding:20px;'>Bugün için aktif görev bulunamadı.</div>";
+        return;
+    }
+
+    container.innerHTML = quests.map(q => {
+        let isCompleted = q.current >= q.target;
+        let isClaimed = !!q.claimed;
+        let progressPct = Math.min(100, Math.round((q.current / q.target) * 100));
+
+        let actionBtn = '';
+        if (isClaimed) {
+            actionBtn = `<span style="padding:6px 12px; background:rgba(255,255,255,0.08); color:#94a3b8; border-radius:8px; font-size:12px; font-weight:bold;">✅ Alındı</span>`;
+        } else if (isCompleted) {
+            actionBtn = `<button onclick="claimDailyQuest('${q.id}')" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:white; border:none; border-radius:8px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 0 10px rgba(16,185,129,0.5);">🎁 Ödülü Al (${q.reward} TL)</button>`;
+        } else {
+            actionBtn = `<span style="padding:6px 12px; background:rgba(255,255,255,0.05); color:#64748b; border-radius:8px; font-size:12px; font-weight:bold;">${q.current} / ${q.target}</span>`;
+        }
+
+        return `
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid ${isCompleted && !isClaimed ? '#10b981' : 'rgba(255,255,255,0.08)'}; border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left;">
+                <div style="flex: 1;">
+                    <div style="font-weight: 800; font-size: 14px; color: ${isCompleted ? '#34d399' : '#f8fafc'};">${q.title}</div>
+                    <div style="font-size: 12px; color: #94a3b8; margin: 2px 0 6px 0;">${q.desc}</div>
+                    <div style="background: rgba(0,0,0,0.4); border-radius: 10px; height: 6px; width: 100%; max-width: 220px; overflow: hidden;">
+                        <div style="background: ${isCompleted ? '#10b981' : '#38bdf8'}; width: ${progressPct}%; height: 100%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                    <div style="font-size: 13px; font-weight: 900; color: #facc15;">+${q.reward} TL</div>
+                    ${actionBtn}
+                </div>
+            </div>
+        `;
+    }).join('');
+});
+
 // --- 5.4 GECE / GÜNDÜZ MODU ---
 let isNightMode = false;
 function toggleNightMode() {
@@ -1823,22 +2141,40 @@ function startTurnTimer(durationSec) {
     bar.style.transition = 'none';
     bar.style.width = '100%';
     bar.style.backgroundColor = '#22c55e';
+    bar.classList.remove('timer-urgent-pulse');
 
     if (turnTimerInterval) clearInterval(turnTimerInterval);
 
     let start = Date.now();
     let totalMs = (durationSec || 30) * 1000;
+    let lastTickSec = -1;
 
     turnTimerInterval = setInterval(() => {
         let elapsed = Date.now() - start;
-        let leftRatio = Math.max(0, 1 - (elapsed / totalMs));
+        let leftMs = Math.max(0, totalMs - elapsed);
+        let leftRatio = Math.max(0, leftMs / totalMs);
+        let leftSec = Math.ceil(leftMs / 1000);
         bar.style.width = (leftRatio * 100) + '%';
 
-        if (leftRatio > 0.5) bar.style.backgroundColor = '#22c55e';
-        else if (leftRatio > 0.25) bar.style.backgroundColor = '#f59e0b';
-        else bar.style.backgroundColor = '#ef4444';
+        if (leftSec <= 7 && leftSec > 0) {
+            bar.style.backgroundColor = '#ef4444';
+            bar.classList.add('timer-urgent-pulse');
+            if (leftSec !== lastTickSec) {
+                lastTickSec = leftSec;
+                if (window.playSound) window.playSound('tick');
+            }
+        } else if (leftRatio > 0.5) {
+            bar.style.backgroundColor = '#22c55e';
+            bar.classList.remove('timer-urgent-pulse');
+        } else if (leftRatio > 0.25) {
+            bar.style.backgroundColor = '#f59e0b';
+            bar.classList.remove('timer-urgent-pulse');
+        } else {
+            bar.style.backgroundColor = '#ef4444';
+        }
 
         if (leftRatio <= 0) {
+            bar.classList.remove('timer-urgent-pulse');
             clearInterval(turnTimerInterval);
             turnTimerInterval = null;
         }
@@ -1892,6 +2228,7 @@ socket.on('gameError', (msg) => {
 });
 
 function leaveCurrentTable() {
+    if (window.leaveTableVoiceChat) window.leaveTableVoiceChat();
     socket.emit('leaveTable');
     window.isSpectating = false;
     window.currentActiveTableId = null;
@@ -3117,8 +3454,22 @@ function drawAnimatedPlayer(p, id) {
     ctx.fill();
     ctx.fillStyle = id === myId ? "#38bdf8" : "#ffffff";
     ctx.font = "bold 11px sans-serif";
-    ctx.textAlign = "center";
     ctx.fillText(p.name, pX, pY - 30);
+
+    // Canlı Sesli Konuşma Göstergesi (2D Dünyada Konuşan Oyuncu Etrafında Yeşil Dalga)
+    if (p.isSpeaking) {
+        ctx.save();
+        ctx.strokeStyle = "#10b981";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        let pulseRadius = 24 + Math.sin(Date.now() / 150) * 3;
+        ctx.arc(pX, pY - 14, pulseRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.font = "12px sans-serif";
+        ctx.fillText("🎙️", pX + nameWidth / 2 + 12, pY - 30);
+        ctx.restore();
+    }
 
     // 12. Sanalika Tarzı Konuşma Baloncukları (Kuyruklu)
     if (activeChatBubbles[id] && activeChatBubbles[id].length > 0) {

@@ -8,6 +8,7 @@ const playerHandDiv = document.getElementById('playerHand');
 
 socket.on('batakUpdate', (data) => {
     window.currentActiveTableId = data.tableId;
+    if (window.setVoiceTable && data.tableId) window.setVoiceTable(data.tableId);
     if (window.startTurnTimer) window.startTurnTimer(data.turnTimeout || 30);
 
     // 1. SKOR TABLOSUNU DOLDURMA

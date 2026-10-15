@@ -7,6 +7,7 @@ let tavlaValidTargets = [];
 socket.on('tavlaUpdate', (state) => {
     currentTavlaState = state;
     window.currentActiveTableId = state.tableId;
+    if (window.setVoiceTable && state.tableId) window.setVoiceTable(state.tableId);
     window.isSpectating = !!state.isSpectator;
 
     const specBanner = document.getElementById('spectatorBanner');

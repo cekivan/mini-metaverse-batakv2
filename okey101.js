@@ -338,6 +338,12 @@ function startOkey101Game(players, existingScores = null, roundNumber = 1, mode 
 
     // Oyuncuların ellerini dağıt
     // İlk başlayacak oyuncuya 22 taş, diğer 3 oyuncuya 21 taş verilir
+    gameData.lastDrawnTileId = {};
+    gameData.lastDrawnTile = {};
+    gameData.initialGostergeOwners = {};
+    gameData.revealedGosterge = {};
+    gameData.hasDrawnEver = {};
+
     players.forEach((pid, index) => {
         let count = (index === 0) ? 22 : 21;
         gameData.hands[pid] = deck.splice(0, count);
@@ -345,13 +351,27 @@ function startOkey101Game(players, existingScores = null, roundNumber = 1, mode 
         gameData.openedType[pid] = null;
         gameData.discardPiles[pid] = [];
         gameData.roundPenalties[pid] = 0;
+        gameData.hasDrawnEver[pid] = false;
         if (!existingScores || existingScores[pid] === undefined) {
             gameData.scores[pid] = 0;
         }
+
+        // İlk dağıtılan elde masadaki gösterge taşı ile eşleşen taş var mı kaydet
+        let matchingGostergeTiles = gameData.hands[pid].filter(t => 
+            !t.isFakeOkey && t.color === gosterge.color && t.value === gosterge.value
+        );
+        if (matchingGostergeTiles.length > 0) {
+            gameData.initialGostergeOwners[pid] = matchingGostergeTiles.map(t => t.id);
+        }
     });
 
-    // İlk oyuncunun elinde zaten 22 taş olduğu için taş çekmiş kabul edilir
+    // İlk oyuncunun elinde zaten 22 taş olduğu için taş çekmiş kabul edilir ve 22. taş yeni çekilen olarak işaretlenir
     gameData.drawnThisTurn = true;
+    if (players[0] && gameData.hands[players[0]] && gameData.hands[players[0]].length === 22) {
+        let firstDrawn = gameData.hands[players[0]][21];
+        gameData.lastDrawnTileId[players[0]] = firstDrawn.id;
+        gameData.lastDrawnTile[players[0]] = firstDrawn;
+    }
 
     return gameData;
 }
@@ -366,6 +386,13 @@ function drawTileFromDeck(gameData, playerId) {
     let tile = gameData.drawPile.pop();
     gameData.hands[playerId].push(tile);
     gameData.drawnThisTurn = true;
+    if (!gameData.hasDrawnEver) gameData.hasDrawnEver = {};
+    gameData.hasDrawnEver[playerId] = true;
+    if (!gameData.lastDrawnTileId) gameData.lastDrawnTileId = {};
+    gameData.lastDrawnTileId[playerId] = tile.id;
+    if (!gameData.lastDrawnTile) gameData.lastDrawnTile = {};
+    gameData.lastDrawnTile[playerId] = tile;
+
     gameData.lastDiscardTaken = false;
     gameData.takenDiscardTile = null;
     gameData.takenDiscardTileId = null;
@@ -457,6 +484,8 @@ function takeDiscardedTile(gameData, playerId) {
     let tile = prevDiscardPile.pop();
     gameData.hands[playerId].push(tile);
     gameData.drawnThisTurn = true;
+    if (!gameData.hasDrawnEver) gameData.hasDrawnEver = {};
+    gameData.hasDrawnEver[playerId] = true;
     gameData.lastDiscardTaken = true; // El açması veya işlemesi şarttır
     gameData.takenDiscardTile = tile;
     gameData.takenDiscardTileId = tile.id;
@@ -475,11 +504,64 @@ function takeDiscardedTile(gameData, playerId) {
     return { success: true, tile: tile };
 }
 
+// Oyuncunun Elindeki Göstergeyi Masaya Göstermesi (Çifte giderken tek taşla çift sayılabilmesi için şarttır!)
+function revealGosterge(gameData, playerId, tileId) {
+    if (!gameData || gameData.gameOver) return { success: false, msg: "Oyun bitti veya aktif değil!" };
+    if (!gameData.players.includes(playerId)) return { success: false, msg: "Oyuncu masada değil!" };
+
+    // Kural: Gösterge sadece ilk el taş çekmeden önce gösterilebilir!
+    if (gameData.hasDrawnEver && gameData.hasDrawnEver[playerId]) {
+        return { success: false, msg: "Göstergeyi sadece oyunun başında ilk el taş çekmeden önce gösterebilirsiniz!" };
+    }
+    // İlk oyuncu için (elinde 22 taşla başlayan): İlk taşını atmadan önce gösterebilir!
+    if (gameData.players[0] === playerId && (gameData.discardPiles[playerId] && gameData.discardPiles[playerId].length > 0)) {
+        return { success: false, msg: "İlk taşınızı attıktan sonra gösterge gösteremezsiniz!" };
+    }
+
+    if (gameData.revealedGosterge && gameData.revealedGosterge[playerId]) {
+        return { success: false, msg: "Zaten göstergenizi gösterdiniz!" };
+    }
+
+    let hand = gameData.hands[playerId] || [];
+    let tile = tileId ? hand.find(t => t.id === tileId) : null;
+    if (!tile) {
+        // Otomatik gösterge taşını bul
+        tile = hand.find(t => !t.isFakeOkey && t.color === gameData.gosterge.color && t.value === gameData.gosterge.value);
+    }
+
+    if (!tile || tile.isFakeOkey || tile.color !== gameData.gosterge.color || tile.value !== gameData.gosterge.value) {
+        return { success: false, msg: "Elinizde masadaki gösterge ile eşleşen taş bulunamadı!" };
+    }
+
+    // Oyun başında bu taşa sahip miydi kontrolü
+    if (gameData.initialGostergeOwners && (!gameData.initialGostergeOwners[playerId] || !gameData.initialGostergeOwners[playerId].includes(tile.id))) {
+        return { success: false, msg: "Gösterge taşının oyuna ilk dağıtılan elinizde gelmiş olması gerekir!" };
+    }
+
+    if (!gameData.revealedGosterge) gameData.revealedGosterge = {};
+    gameData.revealedGosterge[playerId] = tile.id;
+
+    return {
+        success: true,
+        tile: tile,
+        msg: `📢 Göstergeyi masaya gösterdiniz! (${tile.color.toUpperCase()} ${tile.value}) Çifte giderken tek başına 1 çift sayılacak.`
+    };
+}
+
 // El Açma / Per İndirme / Çift İşleme - Katlamasız, Cezalı ve Silerli!
-function openHand(gameData, playerId, persPayload) {
+function openHand(gameData, playerId, persPayload, typeFallback) {
+    if (!gameData) return { success: false, msg: "Oyun verisi bulunamadı!" };
     if (gameData.gameOver) return { success: false, msg: "Oyun bitti!" };
     if (gameData.players[gameData.turnIndex] !== playerId) return { success: false, msg: "Sıra sende değil!" };
     if (!gameData.drawnThisTurn) return { success: false, msg: "Önce taş çekmelisin!" };
+
+    if (!persPayload) persPayload = {};
+    if (Array.isArray(persPayload)) {
+        persPayload = { pers: persPayload, type: typeFallback || 'seri' };
+    }
+    if (typeFallback && !persPayload.type) {
+        persPayload.type = typeFallback;
+    }
 
     let isAlreadyOpened = !!gameData.hasOpened[playerId];
     let myOpenedType = gameData.openedType[playerId];
@@ -510,9 +592,27 @@ function openHand(gameData, playerId, persPayload) {
 
         let usedTileIds = new Set();
         let validPairs = [];
+        let hasStandaloneGosterge = false;
+        let revealedGostergeId = gameData.revealedGosterge ? gameData.revealedGosterge[playerId] : null;
 
         for (let p of pairs) {
-            if (p.length !== 2) return { success: false, msg: "Her çift 2 taştan oluşmalıdır!" };
+            // Tek taşla çift açma kontrolü (SADECE ilk el gösterilmiş gösterge için geçerlidir!)
+            if (p.length === 1) {
+                if (revealedGostergeId && p[0] === revealedGostergeId && !hasStandaloneGosterge) {
+                    let gTile = hand.find(t => t.id === p[0]);
+                    if (!gTile || usedTileIds.has(gTile.id)) {
+                        return { success: false, msg: "Geçersiz gösterge taşı seçimi!" };
+                    }
+                    usedTileIds.add(gTile.id);
+                    validPairs.push([gTile]);
+                    hasStandaloneGosterge = true;
+                    continue;
+                } else {
+                    return { success: false, msg: "Tek taşla çift açabilmek için oyun başında göstergeyi masaya göstermiş olmalısınız!" };
+                }
+            }
+
+            if (p.length !== 2) return { success: false, msg: "Her çift 2 taştan oluşmalıdır (veya gösterilmiş gösterge tek taş olmalıdır)!" };
             let t1 = hand.find(t => t.id === p[0]);
             let t2 = hand.find(t => t.id === p[1]);
             if (!t1 || !t2 || usedTileIds.has(t1.id) || usedTileIds.has(t2.id)) {
@@ -544,12 +644,14 @@ function openHand(gameData, playerId, persPayload) {
 
         // Başarılı Çiftleri Masaya Ekle
         validPairs.forEach(pair => {
+            let score = pair.length === 1 ? (pair[0].value * 2) : (pair[0].value + pair[1].value);
             gameData.tableOpenedPers.push({
                 id: `per_${Date.now()}_${Math.floor(Math.random()*1000)}`,
                 ownerId: playerId,
                 type: 'cift',
+                isGostergePair: pair.length === 1,
                 tiles: pair,
-                score: pair[0].value + pair[1].value
+                score: score
             });
         });
 
@@ -722,16 +824,69 @@ function openHand(gameData, playerId, persPayload) {
     };
 }
 
-// Masadaki Açılmış Perlere Taş Ekleme (İşler Yapma / İşleme - Tekli veya Çoklu Taş)
+// Seri Per Taşlarını Mantıksal Sıralamada Dizme (Örn: 9-10-11-12 veya 11-12-13-1)
+function sortSeriesTiles(tiles, okeyDef) {
+    let nonOkey = tiles.filter(t => !isRealOkey(t, okeyDef));
+    if (nonOkey.length === 0) return tiles;
+    let nonOkeyVals = nonOkey.map(t => t.isFakeOkey ? (okeyDef ? okeyDef.value : t.value) : t.value);
+    let okeyCount = tiles.length - nonOkey.length;
+    let n = tiles.length;
+
+    for (let startVal = 1; startVal <= 13; startVal++) {
+        let req = [];
+        let possible = true;
+        for (let i = 0; i < n; i++) {
+            let v = startVal + i;
+            if (v > 13) {
+                if (v === 14 && i === n - 1) v = 1;
+                else { possible = false; break; }
+            }
+            req.push(v);
+        }
+        if (!possible) continue;
+
+        let tempReq = [...req];
+        let matched = true;
+        for (let val of nonOkeyVals) {
+            let idx = tempReq.indexOf(val);
+            if (idx === -1) { matched = false; break; }
+            tempReq.splice(idx, 1);
+        }
+        if (matched && tempReq.length === okeyCount) {
+            let sorted = [];
+            let remainingPool = [...tiles];
+            for (let v of req) {
+                let foundIdx = remainingPool.findIndex(t => {
+                    if (isRealOkey(t, okeyDef)) return false;
+                    let val = t.isFakeOkey ? (okeyDef ? okeyDef.value : t.value) : t.value;
+                    return val === v;
+                });
+                if (foundIdx !== -1) {
+                    sorted.push(remainingPool.splice(foundIdx, 1)[0]);
+                } else {
+                    let okeyIdx = remainingPool.findIndex(t => isRealOkey(t, okeyDef));
+                    if (okeyIdx !== -1) {
+                        sorted.push(remainingPool.splice(okeyIdx, 1)[0]);
+                    }
+                }
+            }
+            if (remainingPool.length > 0) sorted.push(...remainingPool);
+            return sorted;
+        }
+    }
+    return tiles;
+}
+
+// Masadaki Açılmış Perlere Taş Ekleme (İşler Yapma / İşleme - Sürükle-Bırak veya Butonla)
 function addTileToTablePer(gameData, playerId, tileIdOrIds, targetPerIndex, position = 'end') {
     if (gameData.gameOver) return { success: false, msg: "Oyun bitti!" };
     if (gameData.players[gameData.turnIndex] !== playerId) return { success: false, msg: "Sıra sende değil!" };
     if (!gameData.drawnThisTurn) return { success: false, msg: "Önce taş çekmelisin!" };
 
-    // Eşli modda ortağın açmış olması da taş işlemeye izin verir ("Ortağım açtı, ben de işlerim")
-    let partnerId = getPartnerId(gameData, playerId);
-    let canProcess = gameData.hasOpened[playerId] || (gameData.mode === 'esli' && partnerId && gameData.hasOpened[partnerId]);
-    if (!canProcess) return { success: false, msg: "Masaya taş işlemek için sizin veya ortağınızın el açmış olması gerekir!" };
+    // Kural: Masaya taş işleyebilmek için oyuncunun mutlaka kendisinin el açmış olması gerekir!
+    if (!gameData.hasOpened[playerId]) {
+        return { success: false, msg: "Masaya taş işleyebilmek için önce kendi elinizi açmış (en az 101 puan veya 5 çift) olmanız gerekir!" };
+    }
 
     let targetPer = gameData.tableOpenedPers[targetPerIndex];
     if (!targetPer) return { success: false, msg: "Hedef per bulunamadı!" };
@@ -754,22 +909,35 @@ function addTileToTablePer(gameData, playerId, tileIdOrIds, targetPerIndex, posi
     let okeyDef = gameData.okeyDef;
     let testTilesBest = null;
 
-    if (targetPer.type === 'seri') {
+    let isSeri = targetPer.type === 'seri' || (!targetPer.type && isValidSeries(targetPer.tiles, okeyDef));
+    let isGrup = targetPer.type === 'grup' || (!targetPer.type && isValidGroup(targetPer.tiles, okeyDef));
+
+    // Sıralama tercihi: position 'start' ise önce start ardından end; 'end' ise önce end ardından start dene
+    let orderPositions = (position === 'start') ? ['start', 'end'] : ['end', 'start'];
+
+    if (isSeri) {
         let asc = [...selectedTiles].sort((a, b) => a.value - b.value);
         let desc = [...selectedTiles].sort((a, b) => b.value - a.value);
-
         let candidates = [asc, desc];
-        for (let cand of candidates) {
-            let combined = (position === 'start') ? [...cand, ...targetPer.tiles] : [...targetPer.tiles, ...cand];
-            if (isValidSeries(combined, okeyDef)) {
-                testTilesBest = combined;
-                break;
+
+        for (let pos of orderPositions) {
+            for (let cand of candidates) {
+                let combined = (pos === 'start') ? [...cand, ...targetPer.tiles] : [...targetPer.tiles, ...cand];
+                if (isValidSeries(combined, okeyDef)) {
+                    testTilesBest = sortSeriesTiles(combined, okeyDef);
+                    targetPer.type = 'seri';
+                    break;
+                }
             }
+            if (testTilesBest) break;
         }
-    } else if (targetPer.type === 'grup') {
+    }
+
+    if (!testTilesBest && isGrup) {
         let combined = [...targetPer.tiles, ...selectedTiles];
         if (isValidGroup(combined, okeyDef)) {
             testTilesBest = combined;
+            targetPer.type = 'grup';
         }
     }
 
@@ -794,7 +962,20 @@ function addTileToTablePer(gameData, playerId, tileIdOrIds, targetPerIndex, posi
         checkDiscardTakerPenalty(gameData, playerId, false);
     }
 
-    return { success: true, msg: `${tileIds.length} taş başarıyla masadaki pere işlendi!` };
+    // El Bitiş Kontrolü (Tüm taşlarını işleyerek bitirme)
+    if (gameData.hands[playerId].length === 0) {
+        gameData.gameOver = true;
+        gameData.winner = playerId;
+        calculateRoundEndScores(gameData, playerId, false);
+        return { 
+            success: true, 
+            finished: true, 
+            winner: playerId, 
+            msg: `Tebrikler! ${tileIds.length} taşı masaya işleyerek elinizi bitirdiniz!` 
+        };
+    }
+
+    return { success: true, finished: false, msg: `${tileIds.length} taş başarıyla masadaki pere işlendi!` };
 }
 
 // Masaya Rakibin İşlediği Okeyi Geri Alma (+101 Ceza Rakibe)
@@ -803,9 +984,10 @@ function takeOkeyFromTablePer(gameData, playerId, perIndex, tileIdInHand) {
     if (gameData.players[gameData.turnIndex] !== playerId) return { success: false, msg: "Sıra sende değil!" };
     if (!gameData.drawnThisTurn) return { success: false, msg: "Önce taş çekmelisin!" };
 
-    let partnerId = getPartnerId(gameData, playerId);
-    let canProcess = gameData.hasOpened[playerId] || (gameData.mode === 'esli' && partnerId && gameData.hasOpened[partnerId]);
-    if (!canProcess) return { success: false, msg: "Masadaki Okey'i almak için sizin veya ortağınızın el açmış olması gerekir!" };
+    // Kural: Masadaki Okey'i alabilmek için oyuncunun mutlaka kendisinin el açmış olması gerekir!
+    if (!gameData.hasOpened[playerId]) {
+        return { success: false, msg: "Masadaki Okey'i alabilmek için önce kendi elinizi açmış olmanız gerekir!" };
+    }
 
     let targetPer = gameData.tableOpenedPers[perIndex];
     if (!targetPer) return { success: false, msg: "Hedef per bulunamadı!" };
@@ -881,6 +1063,10 @@ function returnDiscardTile(gameData, playerId) {
     if (gameData.drawPile && gameData.drawPile.length > 0) {
         let newTile = gameData.drawPile.pop();
         hand.push(newTile);
+        if (!gameData.lastDrawnTileId) gameData.lastDrawnTileId = {};
+        gameData.lastDrawnTileId[playerId] = newTile.id;
+        if (!gameData.lastDrawnTile) gameData.lastDrawnTile = {};
+        gameData.lastDrawnTile[playerId] = newTile;
     } else {
         // Deste bittiyse geri al
         hand.push(returnedTile);
@@ -911,9 +1097,12 @@ function isTileIshler(gameData, tile) {
         if (per.type === 'cift') continue;
         let testStart = [tile, ...per.tiles];
         let testEnd = [...per.tiles, tile];
-        if (per.type === 'seri') {
+        let isSeri = per.type === 'seri' || (!per.type && isValidSeries(per.tiles, okeyDef));
+        let isGrup = per.type === 'grup' || (!per.type && isValidGroup(per.tiles, okeyDef));
+        if (isSeri) {
             if (isValidSeries(testStart, okeyDef) || isValidSeries(testEnd, okeyDef)) return true;
-        } else if (per.type === 'grup') {
+        }
+        if (isGrup) {
             if (isValidGroup(testEnd, okeyDef)) return true;
         }
     }
@@ -966,6 +1155,12 @@ function discardTile(gameData, playerId, tileId) {
     hand.splice(tileIndex, 1);
     gameData.discardPiles[playerId].push(tile);
     gameData.lastDiscard = { tile: tile, fromPlayerId: playerId };
+    if (!gameData.hasDrawnEver) gameData.hasDrawnEver = {};
+    gameData.hasDrawnEver[playerId] = true;
+
+    // Yeni çekilen taş işaretini temizle
+    if (gameData.lastDrawnTileId) delete gameData.lastDrawnTileId[playerId];
+    if (gameData.lastDrawnTile) delete gameData.lastDrawnTile[playerId];
 
     // 3. OYUN BİTİŞ KONTROLÜ (Elde 0 taş kaldıysa bitti!)
     if (hand.length === 0) {
@@ -1007,73 +1202,62 @@ function calculateRoundEndScores(gameData, winnerId, threwOkey) {
         let winTeamPlayers = (winTeamIdx === 1) ? team1Players : team2Players;
         let loseTeamPlayers = (winTeamIdx === 1) ? team2Players : team1Players;
 
-        // 1. Kafa Vurma Kontrolü (Kimse açmadan okeyle elden bitiş):
+        // 1. Biten Takımın Tur Hanesi (Doğrudan -101 / -202 / -404):
+        // Kural: Bir oyuncu bittiyse takım arkadaşı ortağının elinin ne olduğu önemsizdir.
+        // Ortağı isterse açmamış olsun önemi yoktur, ortağına ceza yazılmaz;
+        // Biten takımın tur hanesine direkt bu negatif siler (-101 / -202 / -404) yazılır.
         let anyOtherOpened = gameData.players.some(pid => pid !== winnerId && gameData.hasOpened[pid]);
         let isKafaVurma = threwOkey && !anyOtherOpened;
 
-        let winSiler = 0;
-        let winSilerText = "";
+        let winRoundScore = -101;
+        let winRoundText = "-101 (Bitti)";
 
         if (isKafaVurma) {
-            // Kazanan takıma -404 siler!
-            // Kaybeden takıma 1616 ceza!
-            winSiler = 404;
-            winSilerText = "Elden Okeyle Kafa Vurma (-404 Siler)";
+            winRoundScore = -404;
+            winRoundText = "-404 (Kafa Vurma)";
         } else if (threwOkey) {
-            // Okeyle Bitiş: -202 siler, karşı takım cezası 2 ile katlanır
-            winSiler = 202;
-            winSilerText = "Okeyle Bitiş (-202 Siler)";
-        } else {
-            // Normal Bitiş: -101 siler (Çizik)
-            winSiler = 101;
-            winSilerText = "Çizik Bitiş (-101 Siler)";
+            winRoundScore = -202;
+            winRoundText = "-202 (Okeyle Bitti)";
         }
 
-        // Kazanan takım sileri yazboza ekle
-        addSilerToYazboz(gameData, winnerId, winSiler, winSilerText);
+        recordTopYazboz(gameData, winTeamIdx, roundNum, winRoundText, winRoundScore);
 
-        // 2. Üst Bölüm (El Cezaları / Kalan Sayılar):
-        // Kazanan takımın el cezası = 0 (Bitti)
-        recordTopYazboz(gameData, winTeamIdx, roundNum, "0 (Bitti)", 0);
-
+        // 2. Kaybeden Takımın Tur Hanesi (El Cezaları):
         if (isKafaVurma) {
             recordTopYazboz(gameData, loseTeamIdx, roundNum, "1616 (Kafa Vurma Cezası)", 1616);
         } else {
-            // Kaybeden takımın oyuncuları:
             let pA = loseTeamPlayers[0];
             let pB = loseTeamPlayers[1];
             let openedA = !!gameData.hasOpened[pA];
             let openedB = !!gameData.hasOpened[pB];
-            let sumA = getHandSum(gameData.hands[pA], gameData.okeyDef);
-            let sumB = getHandSum(gameData.hands[pB], gameData.okeyDef);
+            let sumA = openedA ? getHandSum(gameData.hands[pA], gameData.okeyDef) : 202;
+            let sumB = openedB ? getHandSum(gameData.hands[pB], gameData.okeyDef) : 202;
 
+            let baseTotal = sumA + sumB;
             let mult = threwOkey ? 2 : 1;
             let multText = threwOkey ? " x 2 (Okey)" : "";
+            let finalTotal = baseTotal * mult;
 
-            if (!openedA && !openedB) {
-                // İki kişi de açamadı: 404 ceza (okeyle bittiyse * 2)
-                let total = 404 * mult;
-                let txt = `404 (İkisi de Açmadı)${multText} = ${total}`;
-                recordTopYazboz(gameData, loseTeamIdx, roundNum, txt, total);
-            } else if (openedA && !openedB) {
-                // Biri açtı (sumA), diğeri açamadı: (202 + sumA) * 2 (okeyle bittiyse * 2 daha)
-                let base = (202 + sumA) * 2;
-                let total = base * mult;
-                let txt = `(202 + ${sumA})*2${multText} = ${total}`;
-                recordTopYazboz(gameData, loseTeamIdx, roundNum, txt, total);
-            } else if (!openedA && openedB) {
-                let base = (202 + sumB) * 2;
-                let total = base * mult;
-                let txt = `(202 + ${sumB})*2${multText} = ${total}`;
-                recordTopYazboz(gameData, loseTeamIdx, roundNum, txt, total);
-            } else {
-                // İkisi de açtı: sumA + sumB
-                let base = sumA + sumB;
-                let total = base * mult;
-                let txt = `(${sumA} + ${sumB})${multText} = ${total}`;
-                recordTopYazboz(gameData, loseTeamIdx, roundNum, txt, total);
-            }
+            let textA = openedA ? `${sumA}` : `202 (Açmadı)`;
+            let textB = openedB ? `${sumB}` : `202 (Açmadı)`;
+            let txt = `(${textA} + ${textB})${multText} = ${finalTotal}`;
+            recordTopYazboz(gameData, loseTeamIdx, roundNum, txt, finalTotal);
         }
+
+        // Bireysel oyuncu puanlarını (scores) güncelle
+        gameData.players.forEach(pid => {
+            let isWinTeam = winTeamPlayers.includes(pid);
+            let pScore = 0;
+            if (isWinTeam) {
+                pScore = (pid === winnerId) ? winRoundScore : 0;
+            } else {
+                let opened = !!gameData.hasOpened[pid];
+                let rem = opened ? getHandSum(gameData.hands[pid], gameData.okeyDef) : 202;
+                pScore = rem * (threwOkey ? 2 : 1);
+            }
+            let roundPen = gameData.roundPenalties[pid] || 0;
+            gameData.scores[pid] = (gameData.scores[pid] || 0) + pScore + roundPen;
+        });
 
         // Genel yazboz toplamlarını hesapla:
         updateYazbozTotals(gameData);
@@ -1223,11 +1407,14 @@ function chooseBotDiscardTile(hand, gameData, okeyDef) {
 module.exports = {
     startOkey101Game,
     drawTileFromDeck,
+    drawTile: drawTileFromDeck,
     takeDiscardedTile,
+    takeDiscardTile: takeDiscardedTile,
     openHand,
     addTileToTablePer,
     discardTile,
     returnDiscardTile,
+    returnTakenDiscard: returnDiscardTile,
     makeBotMove,
     takeOkeyFromTablePer,
     getTeamIndex,
@@ -1238,5 +1425,6 @@ module.exports = {
     getPerScore,
     findValidPartition,
     isTileIshler,
-    isRealOkey
+    isRealOkey,
+    revealGosterge
 };

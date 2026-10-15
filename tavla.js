@@ -8,7 +8,7 @@ function createInitialBoard() {
     let points = Array(25).fill(null).map(() => ({ player: null, count: 0 }));
 
     // Beyaz taşlar (Toplam 15 taş)
-    points[1]  = { player: 'white', count: 2 };
+    points[1] = { player: 'white', count: 2 };
     points[12] = { player: 'white', count: 5 };
     points[17] = { player: 'white', count: 3 };
     points[19] = { player: 'white', count: 5 };
@@ -16,8 +16,8 @@ function createInitialBoard() {
     // Siyah taşlar (Toplam 15 taş)
     points[24] = { player: 'black', count: 2 };
     points[13] = { player: 'black', count: 5 };
-    points[8]  = { player: 'black', count: 3 };
-    points[6]  = { player: 'black', count: 5 };
+    points[8] = { player: 'black', count: 3 };
+    points[6] = { player: 'black', count: 5 };
 
     return points;
 }
