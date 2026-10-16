@@ -42,6 +42,16 @@ socket.on('okey101Update', (data) => {
     if (window.startTurnTimer) window.startTurnTimer(data.turnTimeout || 40);
 
     // 1. Başlık ve El Bilgisi
+    if (window.currentOkey101Round !== data.roundNumber) {
+        window.currentOkey101Round = data.roundNumber;
+        window.okey101RackSlots = null;
+        okey101SelectedIds = [];
+        closeYazbozModal();
+        closeVictoryOverlay();
+    } else if (!data.gameOver) {
+        closeVictoryOverlay();
+    }
+
     const headerTitle = document.getElementById('okey101HeaderTitle');
     if (headerTitle) {
         let modeLabel = (data.mode === 'esli') ? "Eşli (2v2)" : "Tekli";
@@ -57,13 +67,17 @@ socket.on('okey101Update', (data) => {
             statusEl.innerText = `İzleyicisin (Yancı) - Sıra: ${data.turnPlayerName}`;
             statusEl.style.color = '#38bdf8';
         } else if (data.gameOver) {
-            let wName = data.playerInfos[data.winner] ? data.playerInfos[data.winner].name : "Biri";
-            statusEl.innerText = `El Bitti! Kazanan: ${wName}`;
+            let wName = data.playerInfos[data.winner] ? data.playerInfos[data.winner].name : (data.winner ? "Biri" : "Kimse (Deste Bitti)");
+            statusEl.innerText = data.winner ? `El Bitti! Kazanan: ${wName}` : "Deste Bitti! El sona erdi.";
             statusEl.style.color = '#34d399';
 
             if (!window.celebratedRound || window.celebratedRound !== data.roundNumber) {
                 window.celebratedRound = data.roundNumber;
-                triggerVictoryCelebration(wName, data);
+                if (data.winner) {
+                    triggerVictoryCelebration(wName, data);
+                } else {
+                    openYazbozModal();
+                }
             }
         } else if (data.myTurn) {
             window.celebratedRound = null;
@@ -124,16 +138,16 @@ function renderScoreboard(data) {
         let p = data.playerInfos[pid] || { name: "Oyuncu", score: 0, penalties: 0, hasOpened: false, tileCount: 0 };
         let isTurn = (pid === data.players[data.turnIndex]);
         let turnClass = isTurn ? 'turn-pulse' : '';
-        let turnBorder = isTurn 
-            ? 'border: 2px solid #facc15; box-shadow: 0 0 14px rgba(250, 204, 21, 0.7); background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(51, 65, 85, 0.9));' 
+        let turnBorder = isTurn
+            ? 'border: 2px solid #facc15; box-shadow: 0 0 14px rgba(250, 204, 21, 0.7); background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(51, 65, 85, 0.9));'
             : 'border: 1px solid rgba(255,255,255,0.1); background: rgba(15, 23, 42, 0.85);';
-        
-        let openedBadge = p.hasOpened 
-            ? `<span style="background:linear-gradient(135deg,#059669,#10b981); color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px; box-shadow:0 0 6px rgba(16,185,129,0.4);">Açtı</span>` 
+
+        let openedBadge = p.hasOpened
+            ? `<span style="background:linear-gradient(135deg,#059669,#10b981); color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px; box-shadow:0 0 6px rgba(16,185,129,0.4);">Açtı</span>`
             : `<span style="background:#475569; color:#cbd5e1; font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px;">Açmadı</span>`;
-        
-        let penaltyBadge = p.penalties > 0 
-            ? `<span style="background:rgba(239,68,68,0.2); border:1px solid #ef4444; color:#fca5a5; font-weight:800; font-size:10px; padding:1px 5px; border-radius:4px;">+${p.penalties} Ceza</span>` 
+
+        let penaltyBadge = p.penalties > 0
+            ? `<span style="background:rgba(239,68,68,0.2); border:1px solid #ef4444; color:#fca5a5; font-weight:800; font-size:10px; padding:1px 5px; border-radius:4px;">+${p.penalties} Ceza</span>`
             : '';
 
         // Eşli Mod Takım Rozetleri
@@ -161,6 +175,12 @@ function renderScoreboard(data) {
                 <div style="margin-top:4px; padding-top:4px; border-top:1px dashed rgba(239,68,68,0.4); display:flex; justify-content:space-between; align-items:center;">
                     <span style="color:#ef4444; font-size:9.5px; font-weight:800;">⚠️ Masadan Ayrıldı</span>
                     <button onclick="okey101AssignBot('${pid}')" style="padding:2px 7px; background:linear-gradient(135deg,#8b5cf6,#6d28d9); color:white; border:none; border-radius:4px; font-size:9.5px; font-weight:bold; cursor:pointer; box-shadow:0 1px 4px rgba(139,92,246,0.4);" title="Boş koltuğa yapay zeka bot ata">🤖 Bota Devret</button>
+                </div>
+            `;
+        } else if (data.isSpectator && p.isBot) {
+            disconnectedHtml = `
+                <div style="margin-top:4px; padding-top:4px; border-top:1px dashed rgba(139,92,246,0.4); display:flex; justify-content:center;">
+                    <button onclick="takeoverSeat('${data.tableId}', '${pid}')" style="width:100%; padding:3px 8px; background:linear-gradient(135deg,#8b5cf6,#6366f1); color:white; border:none; border-radius:5px; font-size:10px; font-weight:bold; cursor:pointer; box-shadow:0 1px 4px rgba(139,92,246,0.4);" title="Bu botun koltuğunu devral">🤖 ${p.name} Yerine Otur</button>
                 </div>
             `;
         }
@@ -336,7 +356,7 @@ function renderTableOpenedPers(data) {
                 `;
             }
 
-            let perTypeBadge = per.type === 'cift' 
+            let perTypeBadge = per.type === 'cift'
                 ? `<span style="font-size:8.5px; background:rgba(245,158,11,0.2); color:#fbbf24; border:1px solid rgba(245,158,11,0.4); padding:1px 4px; border-radius:3px; font-weight:800;">Çift</span>`
                 : `<span style="font-size:8.5px; background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid rgba(56,189,248,0.4); padding:1px 4px; border-radius:3px; font-weight:800;">${perSum}p</span>`;
 
@@ -513,7 +533,9 @@ window.okey101PerDragOver = okey101PerDragOver;
 
 function okey101PerDragLeave(e, perIndex) {
     const el = document.getElementById(`openPer_${perIndex}`);
-    if (el) el.classList.remove('per-drag-over');
+    if (el && (!e.relatedTarget || !el.contains(e.relatedTarget))) {
+        el.classList.remove('per-drag-over');
+    }
 }
 window.okey101PerDragLeave = okey101PerDragLeave;
 
@@ -606,8 +628,172 @@ function okey101DragEnd(e) {
     okey101DraggedSlotIdx = null;
     document.querySelectorAll('.per-drag-over').forEach(el => el.classList.remove('per-drag-over'));
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.querySelectorAll('.discard-drag-over').forEach(el => el.classList.remove('discard-drag-over'));
+    document.querySelectorAll('.discard-btn-drag-over').forEach(el => el.classList.remove('discard-btn-drag-over'));
 }
 window.okey101DragEnd = okey101DragEnd;
+
+// 🗑️ TAŞ ATMA FONKSİYONU (Hem buton hem sürükle-bırak için ortak)
+function okey101DiscardTile(tileId) {
+    if (!okey101Data) return;
+    if (!okey101Data.myTurn) {
+        alert("Sıra sizde değilken taş atamazsınız!");
+        return;
+    }
+    if (!okey101Data.drawnThisTurn) {
+        alert("Taş atmadan önce desteden veya solunuzdan taş çekmelisiniz!");
+        return;
+    }
+
+    // Yandan taş alındıysa el açılmadan veya masaya işlenmeden taş atılamaz
+    if (okey101Data.lastDiscardTaken) {
+        let hasOpened = okey101Data.playerInfos && okey101Data.playerInfos[socket.id]?.hasOpened;
+        if (!hasOpened) {
+            alert("⚠️ Yandan taş aldığınızda elinizi açmak (en az 101 puan veya 5 çift) ve bu taşı perlerinizde kullanmak zorundasınız!\n\nEl açmadan taş atamazsınız. Eğer elinizi açamıyorsanız 'Taşı Geri Bırak' butonuna basarak desteden çekebilirsiniz.");
+            return;
+        }
+    }
+
+    okey101SelectedIds = [];
+    if (window.playSound) window.playSound('okeyTile');
+    socket.emit('okey101DiscardTile', tileId);
+}
+window.okey101DiscardTile = okey101DiscardTile;
+
+// Sürükle ve Bırak ile Taş Atma Dinleyicileri (Sağ Köşe Yuvası & Buton)
+function okey101DiscardDragOver(e) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    const el = document.getElementById('okey101RightDiscardSlot');
+    if (el) el.classList.add('discard-drag-over');
+    const btn = document.getElementById('okey101DiscardBtn');
+    if (btn) btn.classList.add('discard-btn-drag-over');
+}
+window.okey101DiscardDragOver = okey101DiscardDragOver;
+
+function okey101DiscardDragLeave(e) {
+    const el = document.getElementById('okey101RightDiscardSlot');
+    if (el && (!e.relatedTarget || !el.contains(e.relatedTarget))) {
+        el.classList.remove('discard-drag-over');
+    }
+    const btn = document.getElementById('okey101DiscardBtn');
+    if (btn && (!e.relatedTarget || !btn.contains(e.relatedTarget))) {
+        btn.classList.remove('discard-btn-drag-over');
+    }
+}
+window.okey101DiscardDragLeave = okey101DiscardDragLeave;
+
+function okey101DiscardDrop(e) {
+    e.preventDefault();
+    const el = document.getElementById('okey101RightDiscardSlot');
+    if (el) el.classList.remove('discard-drag-over');
+    const btn = document.getElementById('okey101DiscardBtn');
+    if (btn) btn.classList.remove('discard-btn-drag-over');
+
+    let tileId = okey101DraggedId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
+    okey101DraggedId = null;
+    okey101DraggedSlotIdx = null;
+
+    if (tileId) {
+        okey101DiscardTile(tileId);
+    }
+}
+window.okey101DiscardDrop = okey101DiscardDrop;
+
+// Seçimi Sıfırlama / Temizleme
+function okey101ClearSelection() {
+    okey101SelectedIds = [];
+    if (okey101Data) renderPlayerHand(okey101Data);
+}
+window.okey101ClearSelection = okey101ClearSelection;
+
+// Masaya Uygun Pere Otomatik Taş İşleme Butonu
+function okey101SubmitAutoProcess() {
+    if (!okey101Data || !okey101Data.myTurn) return;
+
+    if (!okey101Data.drawnThisTurn) {
+        alert("Taş işlemeden önce desteden veya solunuzdan taş çekmelisiniz!");
+        return;
+    }
+    let myInfo = okey101Data.playerInfos && okey101Data.playerInfos[socket.id];
+    if (!myInfo || !myInfo.hasOpened) {
+        alert("⚠️ Masaya taş işleyebilmek için önce kendi elinizi açmış (en az 101 puan veya 5 çift) olmanız gerekir!");
+        return;
+    }
+
+    if (okey101SelectedIds.length === 0) {
+        alert("Lütfen masadaki perlere işlemek için ıstakanızdan en az 1 taş seçin (veya taşı doğrudan masadaki pere sürükleyin)!");
+        return;
+    }
+
+    let hand = okey101Data.hand || [];
+    let selectedTiles = hand.filter(t => okey101SelectedIds.includes(t.id));
+    if (selectedTiles.length === 0) return;
+
+    let pers = okey101Data.tableOpenedPers || [];
+    if (pers.length === 0) {
+        alert("Masada henüz açılmış bir per grubu bulunmuyor!");
+        return;
+    }
+
+    let matchedPerIdx = -1;
+    let matchedPos = 'end';
+    let okeyDef = okey101Data.okeyDef;
+
+    for (let pIdx = 0; pIdx < pers.length; pIdx++) {
+        let targetPer = pers[pIdx];
+        if (targetPer.type === 'cift') continue;
+
+        let isSeri = targetPer.type === 'seri' || (!targetPer.type && isValidSeries(targetPer.tiles, okeyDef));
+        let isGrup = targetPer.type === 'grup' || (!targetPer.type && isValidGroup(targetPer.tiles, okeyDef));
+
+        if (isSeri) {
+            let asc = [...selectedTiles].sort((a, b) => a.value - b.value);
+            let desc = [...selectedTiles].sort((a, b) => b.value - a.value);
+            let cands = [asc, desc];
+
+            let found = false;
+            for (let pos of ['end', 'start']) {
+                for (let cand of cands) {
+                    let comb = (pos === 'start') ? [...cand, ...targetPer.tiles] : [...targetPer.tiles, ...cand];
+                    if (isValidSeries(comb, okeyDef)) {
+                        matchedPerIdx = pIdx;
+                        matchedPos = pos;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+            if (found) break;
+        }
+
+        if (isGrup) {
+            let comb = [...targetPer.tiles, ...selectedTiles];
+            if (isValidGroup(comb, okeyDef)) {
+                matchedPerIdx = pIdx;
+                matchedPos = 'end';
+                break;
+            }
+        }
+    }
+
+    if (matchedPerIdx === -1) {
+        alert("Seçtiğiniz taş(lar) masadaki hiçbir per grubuna uymuyor! İstediğiniz perin üzerine tıklayarak da deneyebilirsiniz.");
+        return;
+    }
+
+    let tileIds = [...okey101SelectedIds];
+    okey101SelectedIds = [];
+    if (window.playSound) window.playSound('okeyTile');
+    socket.emit('okey101AddTileToPer', {
+        tileIds: tileIds,
+        tileId: tileIds[0],
+        targetPerIndex: matchedPerIdx,
+        position: matchedPos
+    });
+}
+window.okey101SubmitAutoProcess = okey101SubmitAutoProcess;
 
 // Taş Adı ve Rengini Formatla
 function getOkeyTileName(tile, okeyDef) {
@@ -1058,8 +1244,8 @@ function renderPlayerHand(data) {
                 let drawnCls = isDrawn ? 'drawn-tile' : '';
                 let selectCls = isSelected ? 'selected' : '';
                 let text = tile.isFakeOkey ? '⭐' : (isOkey ? `👑${tile.value}` : tile.value);
-                let extraStyle = isTaken 
-                    ? 'border: 2px solid #38bdf8; box-shadow: 0 0 12px rgba(56, 189, 248, 0.9); position: relative;' 
+                let extraStyle = isTaken
+                    ? 'border: 2px solid #38bdf8; box-shadow: 0 0 12px rgba(56, 189, 248, 0.9); position: relative;'
                     : (isRevealedGosterge ? 'border: 2px solid #facc15; box-shadow: 0 0 14px rgba(250,204,21,0.9); position: relative;' : 'position: relative;');
 
                 let badgeHtml = "";
@@ -1074,8 +1260,8 @@ function renderPlayerHand(data) {
 
                 let perStatus = isInPer ? ' [Geçerli Per ✓]' : (isInPair ? ' [Geçerli Çift 👥]' : '');
                 let gostergeStatus = isRevealedGosterge ? ' [Gösterilmiş Gösterge ⭐ (Tek Başına Çift)]' : '';
-                let tileTitle = (isTaken 
-                    ? 'Yandan aldığınız taş (Açmak şarttır)' 
+                let tileTitle = (isTaken
+                    ? 'Yandan aldığınız taş (Açmak şarttır)'
                     : (isDrawn ? 'Desteden yeni çektiğiniz taş!' : 'Istaka taşı')) + perStatus + gostergeStatus + ' - Çift tıklayarak diğer rafa hızlıca aktarabilir, sürükleyebilir veya tıklayarak seçebilirsiniz.';
 
                 html += `
@@ -1150,6 +1336,23 @@ function renderPlayerHand(data) {
         }
     }
 
+    const processBtn = document.getElementById('okey101ProcessBtn');
+    if (processBtn) {
+        let canProcess = data.myTurn && data.drawnThisTurn && isAlreadyOpened && (data.tableOpenedPers && data.tableOpenedPers.length > 0);
+        processBtn.style.display = canProcess ? 'inline-block' : 'none';
+    }
+
+    const discardBtn = document.getElementById('okey101DiscardBtn');
+    if (discardBtn) {
+        if (okey101SelectedIds.length === 1) {
+            discardBtn.innerText = "🗑️ Seçili Taşı At";
+            discardBtn.style.boxShadow = "0 0 14px rgba(239,68,68,0.85)";
+        } else {
+            discardBtn.innerText = "🗑️ Taş At";
+            discardBtn.style.boxShadow = "0 2px 8px rgba(239,68,68,0.4)";
+        }
+    }
+
     updateSelectedScore();
 }
 
@@ -1186,21 +1389,23 @@ function updateSelectedScore() {
             sum += val;
         });
 
+        let clearBtnHtml = `<button onclick="event.stopPropagation(); okey101ClearSelection()" style="background:#ef4444; color:white; border:none; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; cursor:pointer; margin-left:6px;" title="Tüm seçili taşları kaldır">✖ Temizle</button>`;
+
         if (isAlreadyOpened) {
             scoreDisp.className = "score-pill-valid";
-            scoreDisp.innerHTML = `👉 Seçilen: <b>${sum} Puan</b> (${selectedTiles.length} Taş) | 🀄 Istaka: <b>${detected.totalScore} P</b>`;
+            scoreDisp.innerHTML = `👉 Seçilen: <b>${sum} Puan</b> (${selectedTiles.length} Taş) | 🀄 Istaka: <b>${detected.totalScore} P</b>${clearBtnHtml}`;
         } else if (sum >= 180) {
             scoreDisp.className = "score-pill-valid";
-            scoreDisp.innerHTML = `👑 Seçilen: <b>${sum} Puan</b> (180+ Sağlandı! 2 Siler! ⭐⭐)`;
+            scoreDisp.innerHTML = `👑 Seçilen: <b>${sum} Puan</b> (180+ Sağlandı! 2 Siler! ⭐⭐)${clearBtnHtml}`;
         } else if (sum >= 150) {
             scoreDisp.className = "score-pill-valid";
-            scoreDisp.innerHTML = `🌟 Seçilen: <b>${sum} Puan</b> (150+ Sağlandı! 1 Siler! ⭐)`;
+            scoreDisp.innerHTML = `🌟 Seçilen: <b>${sum} Puan</b> (150+ Sağlandı! 1 Siler! ⭐)${clearBtnHtml}`;
         } else if (sum >= 101) {
             scoreDisp.className = "score-pill-valid";
-            scoreDisp.innerHTML = `✨ Seçilen: <b>${sum} Puan</b> (101 Sağlandı! Açılabilir)`;
+            scoreDisp.innerHTML = `✨ Seçilen: <b>${sum} Puan</b> (101 Sağlandı! Açılabilir)${clearBtnHtml}`;
         } else {
             scoreDisp.className = "score-pill-normal";
-            scoreDisp.innerHTML = `👉 Seçilen: <b>${sum} / 101 Puan</b> (${selectedTiles.length} Taş) | 🀄 Istaka: <b>${detected.totalScore} P</b>`;
+            scoreDisp.innerHTML = `👉 Seçilen: <b>${sum} / 101 Puan</b> (${selectedTiles.length} Taş) | 🀄 Istaka: <b>${detected.totalScore} P</b>${clearBtnHtml}`;
         }
     } else {
         // 2. Durum: Kullanıcı elle taş seçmemişse OTOMATİK ISTAKA PER PUANINI GÖSTER
@@ -1242,8 +1447,8 @@ function updateSelectedScore() {
 
     // El Açma butonuna hazır olduğunu belirten parlama efekti ekle/kaldır
     if (openHandBtn) {
-        let isReadyToOpen = (!isAlreadyOpened && detected.totalScore >= 101 && okey101Data.myTurn) || 
-                            (isAlreadyOpened && openedType === 'seri' && detected.pers.length > 0 && okey101Data.myTurn);
+        let isReadyToOpen = (!isAlreadyOpened && detected.totalScore >= 101 && okey101Data.myTurn) ||
+            (isAlreadyOpened && openedType === 'seri' && detected.pers.length > 0 && okey101Data.myTurn);
         if (isReadyToOpen && okey101SelectedIds.length === 0) {
             openHandBtn.classList.add('btn-ready-to-open');
             openHandBtn.title = "Istakanızdaki tüm geçerli perleri tek tıkla masaya açar!";
@@ -1255,7 +1460,7 @@ function updateSelectedScore() {
 
     if (openPairsBtn) {
         let isReadyPairs = (!isAlreadyOpened && detected.pairs.length >= 5 && okey101Data.myTurn) ||
-                           (isAlreadyOpened && detected.pairs.length > 0 && okey101Data.myTurn);
+            (isAlreadyOpened && detected.pairs.length > 0 && okey101Data.myTurn);
         if (isReadyPairs && okey101SelectedIds.length === 0) {
             openPairsBtn.classList.add('btn-ready-to-open');
             openPairsBtn.title = "Istakanızdaki tüm çiftleri tek tıkla masaya açar!";
@@ -1289,23 +1494,16 @@ window.okey101ReturnDiscard = okey101ReturnDiscard;
 function okey101SubmitDiscard() {
     if (!okey101Data || !okey101Data.myTurn) return;
 
-    // Yandan taş alındıysa el açılmadan taş atılamaz
-    if (okey101Data.lastDiscardTaken) {
-        let hasOpened = okey101Data.playerInfos && okey101Data.playerInfos[socket.id]?.hasOpened;
-        if (!hasOpened) {
-            alert("⚠️ Yandan taş aldığınızda elinizi açmak (en az 101 puan veya 5 çift) ve bu taşı perlerinizde kullanmak zorundasınız!\n\nEl açmadan taş atamazsınız. Eğer elinizi açamıyorsanız 'Taşı Geri Bırak' butonuna basarak desteden çekebilirsiniz.");
-            return;
-        }
+    if (okey101SelectedIds.length === 0) {
+        alert("Lütfen atmak istediğiniz 1 taşı seçin veya taşı sağdaki Taş At alanına sürükleyip bırakın!");
+        return;
     }
-
-    if (okey101SelectedIds.length !== 1) {
-        alert("Lütfen atmak için tam olarak 1 taş seçin!");
+    if (okey101SelectedIds.length > 1) {
+        alert("Birden fazla taş seçili! Lütfen sadece atmak istediğiniz 1 taşı seçin veya taşı doğrudan sağdaki alana sürükleyip bırakın.");
         return;
     }
     let tileId = okey101SelectedIds[0];
-    okey101SelectedIds = [];
-    if (window.playSound) window.playSound('okeyTile');
-    socket.emit('okey101DiscardTile', tileId);
+    okey101DiscardTile(tileId);
 }
 
 // ✨ El Aç (101 Puan veya Per İndirme) - Tek Tıkla Otomatik Açma Desteği
@@ -1323,7 +1521,7 @@ function okey101SubmitOpenHand() {
         persToOpen = [{
             tileIds: [...okey101SelectedIds]
         }];
-    } 
+    }
     // Durum 2: Kullanıcı tek tek seçmedi, ıstakada tespit edilen perleri tek tıkla aç!
     else {
         if (!detected.pers || detected.pers.length === 0) {
@@ -1380,7 +1578,7 @@ function okey101SubmitOpenPairs() {
             return;
         }
         for (let i = 0; i < okey101SelectedIds.length; i += 2) {
-            pairs.push([okey101SelectedIds[i], okey101SelectedIds[i+1]]);
+            pairs.push([okey101SelectedIds[i], okey101SelectedIds[i + 1]]);
         }
     }
     // Durum 2: Otomatik ıstaka çiftleri tek tıkla aç
@@ -1428,7 +1626,7 @@ function okey101SortSeries() {
     if (!okey101Data || !okey101Data.hand) return;
     let hand = [...okey101Data.hand];
     const colorOrder = { 'kirmizi': 1, 'siyah': 2, 'mavi': 3, 'sari': 4, 'sahte': 5 };
-    
+
     // Taşları renk ve sayıya göre sırala
     hand.sort((a, b) => {
         let ca = colorOrder[a.color] || 9;
@@ -1563,104 +1761,204 @@ function renderYazboz(data) {
     const roundText = document.getElementById('yazbozRoundText');
     if (roundText) roundText.innerText = `${data.roundNumber || 1}. El`;
 
-    // Takım İsimleri ve Oyuncuları
-    let t1Players = [data.players[0], data.players[2]];
-    let t2Players = [data.players[1], data.players[3]];
+    const gridEl = document.querySelector('.yazboz-cross-grid');
+    if (!gridEl) return;
 
-    let t1Names = t1Players.map(pid => data.playerInfos[pid] ? data.playerInfos[pid].name : "Oyuncu").join(' & ');
-    let t2Names = t2Players.map(pid => data.playerInfos[pid] ? data.playerInfos[pid].name : "Oyuncu").join(' & ');
+    if (data.mode === 'tekli') {
+        gridEl.style.display = 'grid';
+        gridEl.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        let pIds = data.players || [];
 
-    const t1Title = document.getElementById('yazbozTeam1Players');
-    const t2Title = document.getElementById('yazbozTeam2Players');
-    if (t1Title) t1Title.innerText = t1Names;
-    if (t2Title) t2Title.innerText = t2Names;
+        // 1. Satır: 4 Oyuncu Başlığı
+        let colsHeader = pIds.map((pid, idx) => {
+            let pName = data.playerInfos[pid] ? data.playerInfos[pid].name : `Oyuncu ${idx + 1}`;
+            return `<div class="yazboz-team-header" style="background:#f0fdf4; color:#15803d; border-right:${idx < 3 ? '2px solid #1c1917' : 'none'}; padding:8px 4px;">
+                <div style="font-weight:900; font-size:12px;">👤 ${idx + 1}. OYUNCU</div>
+                <div style="font-size:11px; font-weight:normal; opacity:0.9; margin-top:2px; word-break:break-all;">${pName}</div>
+            </div>`;
+        }).join('');
 
-    // Üst Bölüm (El Cezaları)
-    const topT1El = document.getElementById('yazbozTopTeam1');
-    const topT2El = document.getElementById('yazbozTopTeam2');
-    const topSumT1El = document.getElementById('yazbozTopSumTeam1');
-    const topSumT2El = document.getElementById('yazbozTopSumTeam2');
+        let secTitle1 = `<div class="yazboz-section-title" style="grid-column: span 4;">📝 ÜST TARAF: Elde Kalan Sayıların Cezaları</div>`;
 
-    let t1Top = (y.team1 && y.team1.topRounds) ? y.team1.topRounds : [];
-    let t2Top = (y.team2 && y.team2.topRounds) ? y.team2.topRounds : [];
+        // 2. Satır: Üst Hücreler (El Cezaları)
+        let colsTop = pIds.map((pid, idx) => {
+            let pData = (y.players && y.players[pid]) ? y.players[pid] : { topRounds: [] };
+            let topList = pData.topRounds || [];
+            let content = topList.length > 0
+                ? topList.map(r => {
+                    let cls = r.score < 0 ? "yazboz-row-siler" : "yazboz-row-penalty";
+                    return `<div class="yazboz-row-item"><span style="color:#475569;">${r.text.split(':')[0]}:</span> <b class="${cls}">${r.text.split(':')[1] || r.score}</b></div>`;
+                }).join('')
+                : `<div style="color:#a8a29e; font-style:italic;">Henüz el bitmedi...</div>`;
+            return `<div class="yazboz-cell" style="border-right:${idx < 3 ? '2px solid #1c1917' : 'none'};">${content}</div>`;
+        }).join('');
 
-    let t1TopSum = t1Top.reduce((sum, r) => sum + r.score, 0);
-    let t2TopSum = t2Top.reduce((sum, r) => sum + r.score, 0);
+        // 3. Satır: Üst Toplamlar
+        let colsTopSum = pIds.map((pid, idx) => {
+            let pData = (y.players && y.players[pid]) ? y.players[pid] : { topRounds: [] };
+            let sum = (pData.topRounds || []).reduce((s, r) => s + r.score, 0);
+            return `<div class="yazboz-subtotal-item" style="border-right:${idx < 3 ? '2px solid #1c1917' : 'none'}; justify-content:center; gap:4px;">
+                <span>Toplam:</span> <b>${sum}</b>
+            </div>`;
+        }).join('');
+        let subtotalBar1 = `<div class="yazboz-subtotal-bar" style="grid-column: span 4; display:grid; grid-template-columns:repeat(4, 1fr);">${colsTopSum}</div>`;
 
-    if (topT1El) {
-        topT1El.innerHTML = t1Top.length > 0 
+        let secTitle2 = `<div class="yazboz-section-title divider-plus" style="grid-column: span 4;">➕ ALT TARAF: Yenilen Cezalar (+101) ve Silerler</div>`;
+
+        // 4. Satır: Alt Hücreler
+        let colsBottom = pIds.map((pid, idx) => {
+            let pData = (y.players && y.players[pid]) ? y.players[pid] : { bottomPenalties: [], bottomSilers: [] };
+            let pens = pData.bottomPenalties || [];
+            let sils = pData.bottomSilers || [];
+            let itemsHtml = [];
+            pens.forEach(p => itemsHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${p.round}. El:</span> <b class="yazboz-row-penalty">${p.text}</b></div>`));
+            sils.forEach(s => itemsHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${s.round}. El:</span> <b class="yazboz-row-siler">${s.text}</b></div>`));
+            let content = itemsHtml.length > 0 ? itemsHtml.join('') : `<div style="color:#a8a29e; font-style:italic;">Ceza veya siler yok.</div>`;
+            return `<div class="yazboz-cell" style="border-right:${idx < 3 ? '2px solid #1c1917' : 'none'};">${content}</div>`;
+        }).join('');
+
+        // 5. Satır: Alt Toplamlar
+        let colsBottomSum = pIds.map((pid, idx) => {
+            let pData = (y.players && y.players[pid]) ? y.players[pid] : { bottomPenalties: [], bottomSilers: [] };
+            let penSum = (pData.bottomPenalties || []).reduce((s, p) => s + p.score, 0);
+            let silSum = (pData.bottomSilers || []).reduce((s, sil) => s + Math.abs(sil.score), 0);
+            let net = penSum - silSum;
+            return `<div class="yazboz-subtotal-item" style="border-right:${idx < 3 ? '2px solid #1c1917' : 'none'}; justify-content:center; gap:4px; font-size:10px;">
+                <span>Net:</span> <b>${net}</b>
+            </div>`;
+        }).join('');
+        let subtotalBar2 = `<div class="yazboz-subtotal-bar" style="grid-column: span 4; display:grid; grid-template-columns:repeat(4, 1fr);">${colsBottomSum}</div>`;
+
+        // 6. Satır: Grand Footer (Toplam Skorlar)
+        let totals = pIds.map(pid => {
+            let pData = (y.players && y.players[pid]) ? y.players[pid] : null;
+            let val = (pData && pData.totalScore !== undefined) ? pData.totalScore : (data.scores?.[pid] || 0);
+            return { pid, val };
+        });
+        let minScore = Math.min(...totals.map(t => t.val));
+
+        let colsFooter = totals.map((t, idx) => {
+            let isLeading = t.val === minScore;
+            return `<div class="yazboz-grand-item" style="border-right:${idx < 3 ? '2px solid #78716c' : 'none'}; padding:8px 4px;">
+                <span style="font-size:10px; opacity:0.8;">${idx + 1}. OYUNCU</span>
+                <span style="font-size:16px; color:#38bdf8;">${t.val} Puan</span>
+                ${isLeading ? '<span style="font-size:11px; color:#22c55e;">🏆 Önde</span>' : ''}
+            </div>`;
+        }).join('');
+        let grandFooter = `<div class="yazboz-grand-footer" style="grid-column: span 4; display:grid; grid-template-columns:repeat(4, 1fr);">${colsFooter}</div>`;
+
+        gridEl.innerHTML = colsHeader + secTitle1 + colsTop + subtotalBar1 + secTitle2 + colsBottom + subtotalBar2 + grandFooter;
+    } else {
+        // Eşli Mod - 2 Sütun
+        gridEl.style.display = 'grid';
+        gridEl.style.gridTemplateColumns = '1fr 1fr';
+
+        let t1Players = [data.players[0], data.players[2]];
+        let t2Players = [data.players[1], data.players[3]];
+
+        let t1Names = t1Players.map(pid => data.playerInfos[pid] ? data.playerInfos[pid].name : "Oyuncu").join(' & ');
+        let t2Names = t2Players.map(pid => data.playerInfos[pid] ? data.playerInfos[pid].name : "Oyuncu").join(' & ');
+
+        let t1Top = (y.team1 && y.team1.topRounds) ? y.team1.topRounds : [];
+        let t2Top = (y.team2 && y.team2.topRounds) ? y.team2.topRounds : [];
+        let t1TopSum = t1Top.reduce((sum, r) => sum + r.score, 0);
+        let t2TopSum = t2Top.reduce((sum, r) => sum + r.score, 0);
+
+        let t1TopHtml = t1Top.length > 0
             ? t1Top.map(r => {
                 let cls = r.score < 0 ? "yazboz-row-siler" : "yazboz-row-penalty";
                 return `<div class="yazboz-row-item"><span style="color:#475569;">${r.text.split(':')[0]}:</span> <b class="${cls}">${r.text.split(':')[1] || r.score}</b></div>`;
             }).join('')
             : `<div style="color:#a8a29e; font-style:italic;">Henüz el bitmedi...</div>`;
-    }
-    if (topT2El) {
-        topT2El.innerHTML = t2Top.length > 0
+
+        let t2TopHtml = t2Top.length > 0
             ? t2Top.map(r => {
                 let cls = r.score < 0 ? "yazboz-row-siler" : "yazboz-row-penalty";
                 return `<div class="yazboz-row-item"><span style="color:#475569;">${r.text.split(':')[0]}:</span> <b class="${cls}">${r.text.split(':')[1] || r.score}</b></div>`;
             }).join('')
             : `<div style="color:#a8a29e; font-style:italic;">Henüz el bitmedi...</div>`;
-    }
-    if (topSumT1El) topSumT1El.innerText = `${t1TopSum} Puan`;
-    if (topSumT2El) topSumT2El.innerText = `${t2TopSum} Puan`;
 
-    // Alt Bölüm (Cezalar ve Silerler)
-    const botT1El = document.getElementById('yazbozBottomTeam1');
-    const botT2El = document.getElementById('yazbozBottomTeam2');
-    const botSumT1El = document.getElementById('yazbozBottomSumTeam1');
-    const botSumT2El = document.getElementById('yazbozBottomSumTeam2');
+        let t1Pens = (y.team1 && y.team1.bottomPenalties) ? y.team1.bottomPenalties : [];
+        let t1Sils = (y.team1 && y.team1.bottomSilers) ? y.team1.bottomSilers : [];
+        let t2Pens = (y.team2 && y.team2.bottomPenalties) ? y.team2.bottomPenalties : [];
+        let t2Sils = (y.team2 && y.team2.bottomSilers) ? y.team2.bottomSilers : [];
 
-    let t1Pens = (y.team1 && y.team1.bottomPenalties) ? y.team1.bottomPenalties : [];
-    let t1Sils = (y.team1 && y.team1.bottomSilers) ? y.team1.bottomSilers : [];
-    let t2Pens = (y.team2 && y.team2.bottomPenalties) ? y.team2.bottomPenalties : [];
-    let t2Sils = (y.team2 && y.team2.bottomSilers) ? y.team2.bottomSilers : [];
+        let t1PenSum = t1Pens.reduce((sum, p) => sum + p.score, 0);
+        let t1SilSum = t1Sils.reduce((sum, s) => sum + Math.abs(s.score), 0);
+        let t2PenSum = t2Pens.reduce((sum, p) => sum + p.score, 0);
+        let t2SilSum = t2Sils.reduce((sum, s) => sum + Math.abs(s.score), 0);
 
-    let t1PenSum = t1Pens.reduce((sum, p) => sum + p.score, 0);
-    let t1SilSum = t1Sils.reduce((sum, s) => sum + Math.abs(s.score), 0);
-    let t2PenSum = t2Pens.reduce((sum, p) => sum + p.score, 0);
-    let t2SilSum = t2Sils.reduce((sum, s) => sum + Math.abs(s.score), 0);
+        let t1BotNet = t1PenSum - t1SilSum;
+        let t2BotNet = t2PenSum - t2SilSum;
 
-    let t1BotNet = t1PenSum - t1SilSum;
-    let t2BotNet = t2PenSum - t2SilSum;
+        let t1BotHtml = [];
+        t1Pens.forEach(p => t1BotHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${p.round}. El:</span> <b class="yazboz-row-penalty">${p.text}</b></div>`));
+        t1Sils.forEach(s => t1BotHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${s.round}. El:</span> <b class="yazboz-row-siler">${s.text}</b></div>`));
+        let t1BotContent = t1BotHtml.length > 0 ? t1BotHtml.join('') : `<div style="color:#a8a29e; font-style:italic;">Ceza veya siler yok.</div>`;
 
-    if (botT1El) {
-        let itemsHtml = [];
-        t1Pens.forEach(p => itemsHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${p.round}. El:</span> <b class="yazboz-row-penalty">${p.text}</b></div>`));
-        t1Sils.forEach(s => itemsHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${s.round}. El:</span> <b class="yazboz-row-siler">${s.text}</b></div>`));
-        botT1El.innerHTML = itemsHtml.length > 0 ? itemsHtml.join('') : `<div style="color:#a8a29e; font-style:italic;">Ceza veya siler yok.</div>`;
-    }
-    if (botT2El) {
-        let itemsHtml = [];
-        t2Pens.forEach(p => itemsHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${p.round}. El:</span> <b class="yazboz-row-penalty">${p.text}</b></div>`));
-        t2Sils.forEach(s => itemsHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${s.round}. El:</span> <b class="yazboz-row-siler">${s.text}</b></div>`));
-        botT2El.innerHTML = itemsHtml.length > 0 ? itemsHtml.join('') : `<div style="color:#a8a29e; font-style:italic;">Ceza veya siler yok.</div>`;
-    }
+        let t2BotHtml = [];
+        t2Pens.forEach(p => t2BotHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${p.round}. El:</span> <b class="yazboz-row-penalty">${p.text}</b></div>`));
+        t2Sils.forEach(s => t2BotHtml.push(`<div class="yazboz-row-item"><span style="color:#64748b;">${s.round}. El:</span> <b class="yazboz-row-siler">${s.text}</b></div>`));
+        let t2BotContent = t2BotHtml.length > 0 ? t2BotHtml.join('') : `<div style="color:#a8a29e; font-style:italic;">Ceza veya siler yok.</div>`;
 
-    if (botSumT1El) botSumT1El.innerText = `${t1PenSum > 0 ? '+' + t1PenSum : '0'} / ${t1SilSum > 0 ? '-' + t1SilSum : '0'} = ${t1BotNet}`;
-    if (botSumT2El) botSumT2El.innerText = `${t2PenSum > 0 ? '+' + t2PenSum : '0'} / ${t2SilSum > 0 ? '-' + t2SilSum : '0'} = ${t2BotNet}`;
-
-    // Genel Toplam Ceza (En az olan kazanır)
-    const totalT1El = document.getElementById('yazbozTotalScoreTeam1');
-    const totalT2El = document.getElementById('yazbozTotalScoreTeam2');
-
-    let totalT1 = (y.team1 && y.team1.totalScore !== undefined) ? y.team1.totalScore : (t1TopSum + t1BotNet);
-    let totalT2 = (y.team2 && y.team2.totalScore !== undefined) ? y.team2.totalScore : (t2TopSum + t2BotNet);
-
-    if (totalT1El) {
+        let totalT1 = (y.team1 && y.team1.totalScore !== undefined) ? y.team1.totalScore : (t1TopSum + t1BotNet);
+        let totalT2 = (y.team2 && y.team2.totalScore !== undefined) ? y.team2.totalScore : (t2TopSum + t2BotNet);
         let leader1 = totalT1 < totalT2 ? " 🏆 (Önde)" : "";
-        totalT1El.innerHTML = `${totalT1} Puan${leader1 ? `<span style="font-size:12px; color:#22c55e;">${leader1}</span>` : ''}`;
-    }
-    if (totalT2El) {
         let leader2 = totalT2 < totalT1 ? " 🏆 (Önde)" : "";
-        totalT2El.innerHTML = `${totalT2} Puan${leader2 ? `<span style="font-size:12px; color:#22c55e;">${leader2}</span>` : ''}`;
+
+        gridEl.innerHTML = `
+            <div class="yazboz-team-header team-1" id="yazbozTeam1Title">
+                🔵 1. GRUP (1 & 3)
+                <div style="font-size:11px; font-weight:normal; opacity:0.9;" id="yazbozTeam1Players">${t1Names}</div>
+            </div>
+            <div class="yazboz-team-header team-2" id="yazbozTeam2Title">
+                🟠 2. GRUP (2 & 4)
+                <div style="font-size:11px; font-weight:normal; opacity:0.9;" id="yazbozTeam2Players">${t2Names}</div>
+            </div>
+            <div class="yazboz-section-title">📝 ÜST TARAF: Elde Kalan Sayıların Cezaları</div>
+            <div class="yazboz-cell team-1" id="yazbozTopTeam1">${t1TopHtml}</div>
+            <div class="yazboz-cell team-2" id="yazbozTopTeam2">${t2TopHtml}</div>
+            <div class="yazboz-subtotal-bar">
+                <div class="yazboz-subtotal-item team-1">
+                    <span>Üst El Toplamı:</span>
+                    <b id="yazbozTopSumTeam1">${t1TopSum} Puan</b>
+                </div>
+                <div class="yazboz-subtotal-item team-2">
+                    <span>Üst El Toplamı:</span>
+                    <b id="yazbozTopSumTeam2">${t2TopSum} Puan</b>
+                </div>
+            </div>
+            <div class="yazboz-section-title divider-plus">➕ ALT TARAF: Yenilen Cezalar (+101) ve Silerler</div>
+            <div class="yazboz-cell team-1" id="yazbozBottomTeam1">${t1BotContent}</div>
+            <div class="yazboz-cell team-2" id="yazbozBottomTeam2">${t2BotContent}</div>
+            <div class="yazboz-subtotal-bar">
+                <div class="yazboz-subtotal-item team-1">
+                    <span>Alt Ceza/Siler:</span>
+                    <b id="yazbozBottomSumTeam1">${t1PenSum > 0 ? '+' + t1PenSum : '0'} / ${t1SilSum > 0 ? '-' + t1SilSum : '0'} = ${t1BotNet}</b>
+                </div>
+                <div class="yazboz-subtotal-item team-2">
+                    <span>Alt Ceza/Siler:</span>
+                    <b id="yazbozBottomSumTeam2">${t2PenSum > 0 ? '+' + t2PenSum : '0'} / ${t2SilSum > 0 ? '-' + t2SilSum : '0'} = ${t2BotNet}</b>
+                </div>
+            </div>
+            <div class="yazboz-grand-footer">
+                <div class="yazboz-grand-item team-1">
+                    <span style="font-size:11px; opacity:0.8;">1. GRUP TOPLAM CEZA</span>
+                    <span style="font-size:20px; color:#60a5fa;" id="yazbozTotalScoreTeam1">${totalT1} Puan${leader1 ? `<span style="font-size:12px; color:#22c55e;">${leader1}</span>` : ''}</span>
+                </div>
+                <div class="yazboz-grand-item team-2">
+                    <span style="font-size:11px; opacity:0.8;">2. GRUP TOPLAM CEZA</span>
+                    <span style="font-size:20px; color:#fb923c;" id="yazbozTotalScoreTeam2">${totalT2} Puan${leader2 ? `<span style="font-size:12px; color:#22c55e;">${leader2}</span>` : ''}</span>
+                </div>
+            </div>
+        `;
     }
 
     // Oyun Bittiğinde Sonraki El Butonu ve Otomatik Açılma
     const nextBtn = document.getElementById('yazbozNextRoundBtn');
     if (nextBtn) {
         nextBtn.style.display = data.gameOver ? 'inline-block' : 'none';
+        nextBtn.innerText = (data.roundNumber >= 11) ? "🏆 Yeni Oyuna Başla" : "⏩ Sonraki Ele Geç";
     }
 
     const modal = document.getElementById('okey101YazbozModal');

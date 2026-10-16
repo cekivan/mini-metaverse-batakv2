@@ -36,6 +36,8 @@ module.exports = {
     // Gardırop & Kıyafet Fiyat Listesi
     WARDROBE_ITEM_PRICES: {
         'hats_none': 0, 'hats_bere': 200, 'hats_kasket': 260, 'hats_fes': 320, 'hats_cowboy': 380,
+        // Nostaljik Şapkalar & Özel Aksesuarlar
+        'hats_korsan': 420, 'hats_sihirbaz': 360, 'hats_kulaklik': 250,
         // Kadın Saç Modelleri & Şapkalar
         'hats_hair_long': 260, 'hats_hair_wavy': 320, 'hats_hair_ponytail': 280, 'hats_hair_braids': 290,
         'hats_hair_bob': 240, 'hats_hair_hijab': 250, 'hats_beret_pink': 260, 'hats_crown': 480,
@@ -51,16 +53,17 @@ module.exports = {
         // Ayakkabılar
         'shoes_none': 0, 'shoes_sneakers': 180, 'shoes_classic': 240, 'shoes_boots': 280, 'shoes_heels': 320, 'shoes_flats': 190,
 
-        // El Eşyaları (Props)
+        // El Eşyaları (Props) & Sırt Çantası
         'props_none': 0, 'props_nargile': 700, 'props_cay': 100, 'props_kahve': 110, 'props_balon': 120, 
-        'props_gazoz': 140, 'props_tespih': 400, 'props_olta': 200, 'props_baglama': 220, 'props_asagold': 260, 'props_kupa': 290
+        'props_gazoz': 140, 'props_tespih': 400, 'props_olta': 200, 'props_baglama': 220, 'props_asagold': 260, 'props_kupa': 290,
+        'props_gitar': 350, 'props_sirtcantasi': 220
     },
 
-    // Konut Fiyatları & İsimleri
+    // Konut Fiyatları & İsimleri (Fiyatlar yarıya düşürüldü)
     HOUSE_PRICES: {
-        'standart': 2500,
-        'garden': 5000,
-        'pool': 7500
+        'standart': 1250,
+        'garden': 2500,
+        'pool': 3750
     },
     HOUSE_NAMES: {
         'standart': 'Standart Şehir Dairesi',
@@ -82,29 +85,33 @@ module.exports = {
         'somine': 550,
         'bilgisayar': 570,
         'arcade': 590,
-        'piyano': 600
+        'piyano': 600,
+        'meyve_arabasi': 490
     },
 
     // Balık Tutma Ganimet Tablosu (Kıyıdan)
     FISH_LOOT_TABLE: [
-        { id: 'cizme', name: "Eski Çizme", emoji: "🥾", value: 0, weight: 20, desc: "Eski bir çizme çektin! Deniz temizliği için teşekkürler." },
-        { id: 'hamsi', name: "Karadeniz Hamsisi", emoji: "🐟", value: 1, weight: 28, desc: "Taze bir Karadeniz Hamsisi yakaladın!" },
-        { id: 'istavrit', name: "Gümüş İstavrit", emoji: "🐟", value: 3, weight: 20, desc: "Çıtır bir Gümüş İstavrit yakaladın!" },
-        { id: 'cipura', name: "Ege Çipurası", emoji: "🐠", value: 10, weight: 14, desc: "Nefis bir Ege Çipurası tuttun!" },
-        { id: 'levrek', name: "Deniz Levreği", emoji: "🐟", value: 20, weight: 9, desc: "Büyük bir Deniz Levreği çektin!" },
-        { id: 'ahtapot', name: "Kaya Ahtapotu", emoji: "🐙", value: 35, weight: 6, desc: "Kolları kıpır kıpır bir Kaya Ahtapotu yakaladın!" },
+        { id: 'cizme', name: "Eski Çizme", emoji: "🥾", value: 0, weight: 18, desc: "Eski bir çizme çektin! Deniz temizliği için teşekkürler." },
+        { id: 'hamsi', name: "Karadeniz Hamsisi", emoji: "🐟", value: 1, weight: 26, desc: "Taze bir Karadeniz Hamsisi yakaladın!" },
+        { id: 'istavrit', name: "Gümüş İstavrit", emoji: "🐟", value: 3, weight: 18, desc: "Çıtır bir Gümüş İstavrit yakaladın!" },
+        { id: 'lufer', name: "Boğaz Lüferi", emoji: "🐟", value: 8, weight: 16, desc: "Harika! Boğazın sultanı taze bir Lüfer yakaladın!" },
+        { id: 'cipura', name: "Ege Çipurası", emoji: "🐠", value: 10, weight: 13, desc: "Nefis bir Ege Çipurası tuttun!" },
+        { id: 'levrek', name: "Deniz Levreği", emoji: "🐟", value: 20, weight: 8, desc: "Büyük bir Deniz Levreği çektin!" },
+        { id: 'ahtapot', name: "Kaya Ahtapotu", emoji: "🐙", value: 35, weight: 5, desc: "Kolları kıpır kıpır bir Kaya Ahtapotu yakaladın!" },
         { id: 'inci', name: "Nadir İnci", emoji: "🦪", value: 50, weight: 3, desc: "✨ EFSANEVİ! İstiridye içinden parıldayan Nadir İnci çıktı!" }
     ],
 
     // Kuğu Bisikleti İle Açık Deniz Ganimet Tablosu
     SWAN_BOAT_LOOT_TABLE: [
-        { id: 'hamsi', name: "Karadeniz Hamsisi", emoji: "🐟", value: 1, weight: 10, desc: "Taze bir Karadeniz Hamsisi yakaladın!" },
-        { id: 'istavrit', name: "Gümüş İstavrit", emoji: "🐟", value: 3, weight: 12, desc: "Çıtır bir Gümüş İstavrit yakaladın!" },
+        { id: 'hamsi', name: "Karadeniz Hamsisi", emoji: "🐟", value: 1, weight: 8, desc: "Taze bir Karadeniz Hamsisi yakaladın!" },
+        { id: 'istavrit', name: "Gümüş İstavrit", emoji: "🐟", value: 3, weight: 10, desc: "Çıtır bir Gümüş İstavrit yakaladın!" },
+        { id: 'lufer', name: "Boğaz Lüferi", emoji: "🐟", value: 8, weight: 14, desc: "Harika! Boğazın sultanı taze bir Lüfer yakaladın!" },
         { id: 'cipura', name: "Ege Çipurası", emoji: "🐠", value: 10, weight: 15, desc: "Nefis bir Ege Çipurası tuttun!" },
         { id: 'levrek', name: "Deniz Levreği", emoji: "🐟", value: 20, weight: 15, desc: "Büyük bir Deniz Levreği çektin!" },
-        { id: 'ahtapot', name: "Kaya Ahtapotu", emoji: "🐙", value: 35, weight: 15, desc: "Kolları kıpır kıpır bir Kaya Ahtapotu yakaladın!" },
-        { id: 'inci', name: "Nadir İnci", emoji: "🦪", value: 50, weight: 15, desc: "✨ EFSANEVİ! İstiridye içinden parıldayan Nadir İnci çıktı!" },
+        { id: 'ahtapot', name: "Kaya Ahtapotu", emoji: "🐙", value: 35, weight: 14, desc: "Kolları kıpır kıpır bir Kaya Ahtapotu yakaladın!" },
+        { id: 'inci', name: "Nadir İnci", emoji: "🦪", value: 50, weight: 14, desc: "✨ EFSANEVİ! İstiridye içinden parıldayan Nadir İnci çıktı!" },
         { id: 'mercan', name: "Altın Mercan", emoji: "🪸", value: 75, weight: 10, desc: "🌟 Muhteşem parıltı! Derin sulardan Altın Mercan çıkardın!" },
-        { id: 'hazine', name: "Antik Hazine Sandığı", emoji: "🪙", value: 100, weight: 8, desc: "👑 İNANILMAZ! Kuğu bisikletiyle açık denizden altın dolu Antik Hazine Sandığı çektin!" }
+        { id: 'hazine', name: "Antik Hazine Sandığı", emoji: "🪙", value: 100, weight: 8, desc: "👑 İNANILMAZ! Kuğu bisikletiyle açık denizden altın dolu Antik Hazine Sandığı çektin!" },
+        { id: 'baban', name: "Baban", emoji: "🧔‍♂️", value: 300, weight: 3, desc: "🌊 Denizden baban çıktı! 'Denizden babam çıksa yerim' deyimi gerçek oldu!" }
     ]
 };

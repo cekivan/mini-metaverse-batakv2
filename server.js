@@ -7,14 +7,22 @@ const config = require('./src/config');
 const dataManager = require('./src/dataManager');
 const tableManager = require('./src/tableManager');
 const gameCoordinator = require('./src/gameCoordinator');
+const fatherPetManager = require('./src/fatherPetManager');
+const { getRoomSpawn, getDemoHouseConfig } = require('./src/config/roomSpawns');
 
 // Handler Modülleri
 const { registerAuthHandlers } = require('./src/handlers/authHandler');
 const { registerSocialHandlers } = require('./src/handlers/socialHandler');
 const { registerHousingHandlers } = require('./src/handlers/housingHandler');
-const { registerEconomyHandlers } = require('./src/handlers/economyHandler');
+const { registerEconomyHandlers, playerSwanTimers } = require('./src/handlers/economyHandler');
 const { registerGameActionHandlers } = require('./src/handlers/gameActionHandler');
 const { registerVoiceHandlers, cleanupSocketVoice } = require('./src/handlers/voiceHandler');
+const { registerBlackjackHandlers, removePlayerFromBlackjack } = require('./src/handlers/blackjackHandler');
+const { registerRouletteHandlers } = require('./src/handlers/rouletteHandler');
+const { registerSlotHandlers } = require('./src/handlers/slotHandler');
+const { initGanyanEngine, registerGanyanHandlers } = require('./src/handlers/ganyanHandler');
+const { initNargileLounge, registerNargileLoungeHandlers, handlePlayerDisconnect: handleNargileDisconnect } = require('./src/handlers/nargileLoungeHandler');
+const adManager = require('./src/adManager');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,89 +33,40 @@ app.use(express.static('public'));
 // Çevrimiçi Oyuncular Havuzu
 const players = {};
 
-// Zamanlayıcı Havuzları
-const playerFishingTimers = {};
-const playerTeaTimers = {};
-
-function getPlayersInRoom(roomName) {
-    let roomPlayers = {};
-    for (let id in players) {
-        if (players[id].room === roomName) roomPlayers[id] = players[id];
-    }
-    return roomPlayers;
-}
-
-function givePlayerTeaWithTimer(targetSocketId, targetUsername, durationMs = 300000) {
-    let target = players[targetSocketId];
-    if (!target) return;
-    target.hasTea = true;
-    target.heldItem = 'cay';
-
-    let targetData = dataManager.persistentData.users[targetUsername];
-    if (targetData) {
-        if (!targetData.avatar) targetData.avatar = {};
-        targetData.avatar.heldItem = 'cay';
-        targetData.teaExpiresAt = Date.now() + durationMs;
-        if (!targetData.propInventory) targetData.propInventory = {};
-        targetData.propInventory['props_cay'] = 1;
-        dataManager.savePersistentData();
-    }
-
-    if (playerTeaTimers[targetSocketId]) {
-        clearTimeout(playerTeaTimers[targetSocketId]);
-        delete playerTeaTimers[targetSocketId];
-    }
-
-    playerTeaTimers[targetSocketId] = setTimeout(() => {
-        delete playerTeaTimers[targetSocketId];
-        let currentTarget = players[targetSocketId];
-        if (currentTarget && (currentTarget.heldItem === 'cay' || currentTarget.hasTea)) {
-            currentTarget.heldItem = 'none';
-            currentTarget.hasTea = false;
-            if (dataManager.persistentData.users[targetUsername]) {
-                dataManager.persistentData.users[targetUsername].avatar.heldItem = 'none';
-                dataManager.persistentData.users[targetUsername].teaExpiresAt = null;
-                delete dataManager.persistentData.users[targetUsername].propInventory['props_cay'];
-                dataManager.savePersistentData();
-            }
-            io.to(currentTarget.room).emit('playerAvatarChange', {
-                id: targetSocketId,
-                avatar: dataManager.persistentData.users[targetUsername]?.avatar,
-                heldItem: 'none'
-            });
-            io.to(currentTarget.room).emit('playerActionUpdate', {
-                id: targetSocketId,
-                action: null,
-                hasTea: false
-            });
-            io.to(targetSocketId).emit('teaExpired');
-            io.to(targetSocketId).emit('systemMessage', "☕ Çayını bitirdin ve bardak soğudu! (5 dakikalık süren doldu).");
-            io.to(targetSocketId).emit('propInventoryUpdate', dataManager.persistentData.users[targetUsername]?.propInventory || {});
-        }
-    }, durationMs);
-
-    io.to(target.room).emit('playerActionUpdate', { id: targetSocketId, action: 'tea', hasTea: true });
-    io.to(target.room).emit('playerAvatarChange', { id: targetSocketId, avatar: targetData?.avatar, heldItem: 'cay' });
-    io.to(targetSocketId).emit('teaTimerStarted', { remainingMs: durationMs });
-    io.to(targetSocketId).emit('propInventoryUpdate', targetData?.propInventory || {});
-}
-
-function getAdminOnlineUsers() {
-    let onlineUsernames = [...new Set(Object.values(players).map(p => p.name))];
-    return onlineUsernames.map(u => ({
-        username: u,
-        money: dataManager.persistentData.users[u]?.money !== undefined ? dataManager.persistentData.users[u].money : 0,
-        isOnline: true
-    })).sort((a, b) => a.username.localeCompare(b.username));
-}
-
-const helpers = {
+// Modüler Yardımcı Fonksiyonlar & Zamanlayıcılar
+const {
     getPlayersInRoom,
     givePlayerTeaWithTimer,
     getAdminOnlineUsers,
+    getAdminSanctionsList,
+    playerFishingTimers,
+    playerTeaTimers
+} = require('./src/utils/playerHelpers');
+
+function getRoomPlayers(roomName) {
+    return getPlayersInRoom(players, roomName);
+}
+
+const helpers = {
+    getPlayersInRoom: (room) => getPlayersInRoom(players, room),
+    givePlayerTeaWithTimer: (sid, uname, dur) => givePlayerTeaWithTimer(io, players, sid, uname, dur),
+    getAdminOnlineUsers: () => getAdminOnlineUsers(players),
+    getAdminSanctionsList: () => getAdminSanctionsList(),
     playerFishingTimers,
     playerTeaTimers
 };
+
+// Baba Peti (Denizden Babam Çıksa Yerim) Yöneticisini Başlat
+fatherPetManager.init(io, players, dataManager);
+
+// Altılı Ganyan Hipodrom Yarış Motorunu Başlat
+initGanyanEngine(io, players);
+
+// Otantik Nargile Lounge Motorunu Başlat
+initNargileLounge(io, players);
+
+// Canlı Reklam Panoları ve TV Ağı Motorunu Başlat
+adManager.init(io, players);
 
 // --- SOKET BAĞLANTILARI ---
 io.on('connection', (socket) => {
@@ -118,13 +77,27 @@ io.on('connection', (socket) => {
     registerEconomyHandlers(io, socket, players, helpers);
     registerGameActionHandlers(io, socket, players);
     registerVoiceHandlers(io, socket, players);
+    registerBlackjackHandlers(io, socket, players);
+    registerRouletteHandlers(io, socket, players);
+    registerSlotHandlers(io, socket, players);
+    registerGanyanHandlers(io, socket, players);
+    registerNargileLoungeHandlers(io, socket, players);
 
-    // 2. Oyuncu Hareketi
+    // Reklam Ağı Soket Dinleyicileri
+    adManager.handleClientConnect(socket);
+    socket.on('submitBillboardAd', (data) => adManager.submitAd(socket, data ? data.text : ''));
+    socket.on('getBillboardAdState', () => socket.emit('billboardAdUpdate', adManager.getState()));
+
+    // 2. Oyuncu Hareketi (Akıcı Ağ Filtrelemesi)
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id] && movementData) {
-            if (players[socket.id].isFishing) {
-                let dx = Math.abs(players[socket.id].x - movementData.x);
-                let dy = Math.abs(players[socket.id].y - movementData.y);
+            let prevX = players[socket.id].x;
+            let prevY = players[socket.id].y;
+            let hasMoved = (prevX === undefined || prevY === undefined || Math.abs(prevX - movementData.x) > 0.05 || Math.abs(prevY - movementData.y) > 0.05);
+
+            if (players[socket.id].isFishing && hasMoved) {
+                let dx = Math.abs(prevX - movementData.x);
+                let dy = Math.abs(prevY - movementData.y);
                 if (dx > 3 || dy > 3) {
                     players[socket.id].isFishing = false;
                     if (playerFishingTimers[socket.id]) {
@@ -135,15 +108,30 @@ io.on('connection', (socket) => {
                     socket.emit('fishingCancelled');
                 }
             }
+
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
-            socket.to(players[socket.id].room).emit('playerMoved', { id: socket.id, x: movementData.x, y: movementData.y });
+            let stateChanged = (movementData.isMoving !== undefined && movementData.isMoving !== players[socket.id]._lastBroadcastMoving);
+            if (movementData.isMoving !== undefined) {
+                players[socket.id].isMoving = movementData.isMoving;
+            }
+
+            if (hasMoved || stateChanged) {
+                players[socket.id]._lastBroadcastMoving = movementData.isMoving;
+                socket.to(players[socket.id].room).emit('playerMoved', { 
+                    id: socket.id, 
+                    x: movementData.x, 
+                    y: movementData.y,
+                    isMoving: movementData.isMoving
+                });
+                fatherPetManager.updateOwnerPosition(socket.id, movementData.x, movementData.y);
+            }
         }
     });
 
     // 3. Mekan Değiştirme
     socket.on('changeRoom', (newRoom) => {
-        if (!players[socket.id] || !newRoom) return;
+        if (!players[socket.id] || !newRoom || typeof newRoom !== 'string') return;
         let oldRoom = players[socket.id].room;
 
         if (players[socket.id].isFishing) {
@@ -153,6 +141,13 @@ io.on('connection', (socket) => {
                 delete playerFishingTimers[socket.id];
             }
         }
+        if (oldRoom === 'sahil' && newRoom !== 'sahil') {
+            players[socket.id].hasSwanBoat = false;
+            if (playerSwanTimers && playerSwanTimers[socket.id]) {
+                clearTimeout(playerSwanTimers[socket.id]);
+                delete playerSwanTimers[socket.id];
+            }
+        }
 
         socket.leave(oldRoom);
         socket.to(oldRoom).emit('playerDisconnected', socket.id);
@@ -160,47 +155,100 @@ io.on('connection', (socket) => {
         socket.join(newRoom);
         players[socket.id].room = newRoom;
 
-        if (newRoom === "kafe") { players[socket.id].x = 350; players[socket.id].y = 400; }
-        else if (newRoom === "sokak") { players[socket.id].x = 350; players[socket.id].y = 80; }
-        else if (newRoom === "sahil") { players[socket.id].x = 420; players[socket.id].y = 350; }
-        else if (newRoom === "nargile_cafe") { players[socket.id].x = 400; players[socket.id].y = 380; }
-        else if (newRoom === "market") { players[socket.id].x = 400; players[socket.id].y = 420; }
+        if (newRoom === "kafe") { 
+            players[socket.id].x = 400; players[socket.id].y = 410; 
+        }
+        else if (newRoom === "sokak") { 
+            if (oldRoom === "sahil") { players[socket.id].x = 85; players[socket.id].y = 240; }
+            else if (oldRoom === "cadde") { players[socket.id].x = 720; players[socket.id].y = 240; }
+            else if (oldRoom === "kafe") { players[socket.id].x = 400; players[socket.id].y = 125; }
+            else if (oldRoom === "nargile_cafe") { players[socket.id].x = 670; players[socket.id].y = 125; }
+            else if (oldRoom === "market") { players[socket.id].x = 730; players[socket.id].y = 350; }
+            else if (oldRoom === "emlakci") { players[socket.id].x = 180; players[socket.id].y = 125; }
+            else { players[socket.id].x = 350; players[socket.id].y = 230; }
+        }
+        else if (newRoom === "cadde") {
+            if (oldRoom === "sokak") { players[socket.id].x = 80; players[socket.id].y = 230; }
+            else if (oldRoom === "ganyan") { players[socket.id].x = 210; players[socket.id].y = 145; }
+            else if (oldRoom === "dedenin_yeri") { players[socket.id].x = 585; players[socket.id].y = 145; }
+            else { players[socket.id].x = 400; players[socket.id].y = 230; }
+        }
+        else if (newRoom === "emlakci") { 
+            players[socket.id].x = 400; players[socket.id].y = 410; 
+        }
+        else if (newRoom === "sahil") { 
+            if (oldRoom === "sokak") { players[socket.id].x = 680; players[socket.id].y = 270; }
+            else { players[socket.id].x = 420; players[socket.id].y = 350; }
+        }
+        else if (newRoom === "ganyan") { 
+            players[socket.id].x = 400; players[socket.id].y = 410; 
+        }
+        else if (newRoom === "dedenin_yeri") { 
+            players[socket.id].x = 400; players[socket.id].y = 410; 
+        }
+        else if (newRoom === "nargile_cafe") { 
+            players[socket.id].x = 400; players[socket.id].y = 390; 
+        }
+        else if (newRoom === "market") { 
+            players[socket.id].x = 400; players[socket.id].y = 420; 
+        }
         else if (newRoom.startsWith("house_")) {
             players[socket.id].x = 400; players[socket.id].y = 400;
             let parsed = dataManager.parseHouseRoom(newRoom);
             if (parsed) {
-                let hData = dataManager.persistentData.users[parsed.owner];
-                if (hData) {
-                    let targetHouse = null;
-                    let targetType = parsed.houseType;
-                    if (hData.houses && targetType && hData.houses[targetType]) {
-                        targetHouse = hData.houses[targetType];
-                    } else if (hData.houses && Object.keys(hData.houses).length > 0) {
-                        targetType = targetType || Object.keys(hData.houses)[0];
-                        targetHouse = hData.houses[targetType];
-                    } else if (hData.house) {
-                        targetHouse = hData.house;
-                        targetType = targetType || hData.house.type || 'standart';
-                    }
+                let isDemo = (parsed.owner === 'ornek' || parsed.owner === 'demo');
+                if (isDemo) {
+                    let demoType = parsed.houseType || 'standart';
+                    let demoFurn = getDemoHouseConfig(demoType);
+                    socket.emit('houseDataUpdate', {
+                        owner: 'Örnek Daire',
+                        type: demoType,
+                        houseId: newRoom,
+                        furniture: demoFurn,
+                        isDemo: true
+                    });
+                } else {
+                    let hData = dataManager.persistentData.users[parsed.owner];
+                    if (hData) {
+                        let targetHouse = null;
+                        let targetType = parsed.houseType;
+                        if (hData.houses && targetType && hData.houses[targetType]) {
+                            targetHouse = hData.houses[targetType];
+                        } else if (hData.houses && Object.keys(hData.houses).length > 0) {
+                            targetType = targetType || Object.keys(hData.houses)[0];
+                            targetHouse = hData.houses[targetType];
+                        } else if (hData.house) {
+                            targetHouse = hData.house;
+                            targetType = targetType || hData.house.type || 'standart';
+                        }
 
-                    if (targetHouse) {
-                        socket.emit('houseDataUpdate', {
-                            ...targetHouse,
-                            owner: parsed.owner,
-                            type: targetType,
-                            houseId: `${parsed.owner}_${targetType}`
-                        });
+                        if (targetHouse) {
+                            socket.emit('houseDataUpdate', {
+                                ...targetHouse,
+                                owner: parsed.owner,
+                                type: targetType,
+                                houseId: `${parsed.owner}_${targetType}`
+                            });
+                        }
                     }
                 }
             }
         }
 
-        socket.emit('currentPlayers', getPlayersInRoom(newRoom));
+        fatherPetManager.handleRoomChange(socket.id, oldRoom, newRoom);
+        if (oldRoom === 'nargile_cafe' && newRoom !== 'nargile_cafe') {
+            handleNargileDisconnect(socket.id);
+        }
+
+        socket.emit('currentPlayers', getRoomPlayers(newRoom));
+        socket.emit('activeFatherPets', fatherPetManager.getPetsInRoom(newRoom));
         socket.to(newRoom).emit('newPlayer', { id: socket.id, player: players[socket.id] });
     });
 
     // 4. Bağlantı Kopması
     socket.on('disconnect', () => {
+        handleNargileDisconnect(socket.id);
+        fatherPetManager.handleDisconnect(socket.id);
         if (playerFishingTimers[socket.id]) {
             clearTimeout(playerFishingTimers[socket.id]);
             delete playerFishingTimers[socket.id];
@@ -208,6 +256,10 @@ io.on('connection', (socket) => {
         if (playerTeaTimers[socket.id]) {
             clearTimeout(playerTeaTimers[socket.id]);
             delete playerTeaTimers[socket.id];
+        }
+        if (playerSwanTimers && playerSwanTimers[socket.id]) {
+            clearTimeout(playerSwanTimers[socket.id]);
+            delete playerSwanTimers[socket.id];
         }
 
         cleanupSocketVoice(socket);
@@ -280,16 +332,20 @@ io.on('connection', (socket) => {
                 }
             }
 
+            removePlayerFromBlackjack(io, socket.id, players);
+            tableManager.removePlayerFromLobbies(socket.id);
+
             delete players[socket.id];
             io.to(room).emit('playerDisconnected', socket.id);
-
+        } else {
+            removePlayerFromBlackjack(io, socket.id, players);
             tableManager.removePlayerFromLobbies(socket.id);
         }
     });
 });
 
 // Bilardo Fizik Motorunu Başlat
-gameCoordinator.startBilliardPhysicsLoop(io);
+gameCoordinator.startBilliardPhysicsLoop(io, players);
 
 // Global Güvenlik Katmanı (Uncaught Exception & Unhandled Rejection Koruması)
 process.on('uncaughtException', (err) => {

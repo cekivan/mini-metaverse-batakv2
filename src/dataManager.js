@@ -43,13 +43,13 @@ function verifyPassword(password, storedHash, salt) {
     }
 }
 
-// --- 2. ATOMİK VE DEBOUNCED GÜVENLİ DOSYA YAZIMI ---
+// --- 2. ASENKRON, ATOMİK VE DEBOUNCED GÜVENLİ DOSYA YAZIMI ---
 function flushNow() {
     if (saveTimer) {
         clearTimeout(saveTimer);
         saveTimer = null;
     }
-    savePersistentDataAtomic();
+    savePersistentDataSync();
 }
 
 function scheduleSave(delay = 120) {
@@ -60,7 +60,27 @@ function scheduleSave(delay = 120) {
     }, delay);
 }
 
-function savePersistentDataAtomic() {
+function savePersistentDataSync() {
+    try {
+        const dataStr = JSON.stringify(persistentData, null, 2);
+        fs.writeFileSync(TEMP_FILE, dataStr, 'utf-8');
+        try {
+            fs.renameSync(TEMP_FILE, DATA_FILE);
+        } catch (renameErr) {
+            fs.copyFileSync(TEMP_FILE, DATA_FILE);
+            try { fs.unlinkSync(TEMP_FILE); } catch (_) {}
+        }
+    } catch (err) {
+        console.error("Kayıt hatası (sync):", err.message);
+        try {
+            fs.writeFileSync(DATA_FILE, JSON.stringify(persistentData, null, 2), 'utf-8');
+        } catch (e2) {
+            console.error("Kritik: Doğrudan yazım da başarısız (sync):", e2.message);
+        }
+    }
+}
+
+async function savePersistentDataAtomic() {
     if (isSaving) {
         // Zaten yazıyorsa bir sonraki döngüde tekrar dene
         scheduleSave(60);
@@ -70,22 +90,22 @@ function savePersistentDataAtomic() {
 
     try {
         const dataStr = JSON.stringify(persistentData, null, 2);
-        // Önce geçici dosyaya yaz
-        fs.writeFileSync(TEMP_FILE, dataStr, 'utf-8');
+        // Node.js Event Loop'unu bloklamayan asenkron disk yazımı
+        await fs.promises.writeFile(TEMP_FILE, dataStr, 'utf-8');
         // Windows NTFS dosya kilitleme ve üzerine yazma uyumluluğu
         try {
-            fs.renameSync(TEMP_FILE, DATA_FILE);
+            await fs.promises.rename(TEMP_FILE, DATA_FILE);
         } catch (renameErr) {
-            fs.copyFileSync(TEMP_FILE, DATA_FILE);
-            try { fs.unlinkSync(TEMP_FILE); } catch (_) {}
+            await fs.promises.copyFile(TEMP_FILE, DATA_FILE);
+            try { await fs.promises.unlink(TEMP_FILE); } catch (_) {}
         }
     } catch (err) {
-        console.error("Kayıt hatası:", err.message);
+        console.error("Kayıt hatası (async):", err.message);
         try {
             // Doğrudan yazmayı dene
-            fs.writeFileSync(DATA_FILE, JSON.stringify(persistentData, null, 2), 'utf-8');
+            await fs.promises.writeFile(DATA_FILE, JSON.stringify(persistentData, null, 2), 'utf-8');
         } catch (e2) {
-            console.error("Kritik: Doğrudan yazım da başarısız:", e2.message);
+            console.error("Kritik: Doğrudan yazım da başarısız (async):", e2.message);
         }
     } finally {
         isSaving = false;
@@ -136,6 +156,14 @@ function loadPersistentData() {
 
 // Sunucu başlangıcında veriyi belleğe al
 loadPersistentData();
+
+// --- 3.1 ADMİN KULLANICILARI VE YETKİ KONTROLÜ ---
+const ADMIN_USERS = ['yasin', 'maltoroz'];
+
+function isUserAdmin(name) {
+    if (!name || typeof name !== 'string') return false;
+    return ADMIN_USERS.includes(name.toLowerCase().trim());
+}
 
 // --- 4. KULLANICI ARAMA & EV / ODA AYRIŞTIRICILARI ---
 function findUserKey(name) {
@@ -208,6 +236,10 @@ function loginUser(rawName, password, playersOnline = {}) {
         if (!isValid) {
             return { success: false, message: "❌ Şifre hatalı!" };
         }
+        if (isUserAdmin(existingKey)) {
+            uData.role = 'admin';
+            uData.isAdmin = true;
+        }
         return {
             success: true,
             username: existingKey,
@@ -219,7 +251,7 @@ function loginUser(rawName, password, playersOnline = {}) {
     // Eski (legacy) hesap ilk girişte şifresini bağlar
     const { hash, salt } = hashPassword(password);
     uData.auth = { hash, salt };
-    if (existingKey.toLowerCase() === 'yasin') {
+    if (isUserAdmin(existingKey)) {
         uData.role = 'admin';
         uData.isAdmin = true;
     }
@@ -258,11 +290,11 @@ function registerUser(rawName, password, gender = 'male') {
     const { hash, salt } = hashPassword(password);
 
     const newUser = {
-        money: 100,
+        money: 1000,
         gender: gender || 'male',
         auth: { hash, salt },
-        role: (cleanName.toLowerCase() === 'yasin') ? 'admin' : 'user',
-        isAdmin: (cleanName.toLowerCase() === 'yasin'),
+        role: isUserAdmin(cleanName) ? 'admin' : 'user',
+        isAdmin: isUserAdmin(cleanName),
         avatar: {
             hat: isFem ? 'hair_long' : 'bere',
             face: 'none',
@@ -435,6 +467,7 @@ module.exports = {
     persistentData,
     loadPersistentData,
     savePersistentData,
+    saveUserData: savePersistentData,
     savePersistentDataAtomic,
     flushNow,
     findUserKey,
@@ -450,5 +483,7 @@ module.exports = {
     sanitizeString,
     getUserDailyQuests,
     recordQuestProgress,
-    claimQuestReward
+    claimQuestReward,
+    isUserAdmin,
+    ADMIN_USERS
 };

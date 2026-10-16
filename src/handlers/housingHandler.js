@@ -118,7 +118,8 @@ function registerHousingHandlers(io, socket, players) {
         targetHouse.furniture.push({
             id: data.itemId,
             x: Math.round(data.x || 400),
-            y: Math.round(data.y || 300)
+            y: Math.round(data.y || 300),
+            rotation: data.rotation || 0
         });
         uData.house = targetHouse;
         dataManager.savePersistentData();
@@ -148,6 +149,43 @@ function registerHousingHandlers(io, socket, players) {
         if (index >= 0 && index < targetHouse.furniture.length) {
             targetHouse.furniture[index].x = Math.round(data.x);
             targetHouse.furniture[index].y = Math.round(data.y);
+            if (data.rotation !== undefined) {
+                targetHouse.furniture[index].rotation = parseInt(data.rotation);
+            }
+            uData.house = targetHouse;
+            dataManager.savePersistentData();
+
+            io.to(players[socket.id].room).emit('houseFurnitureSync', targetHouse.furniture);
+        }
+    });
+
+    // 4.1 MOBİLYA DÖNDÜRME (90 DERECE ÇEVİRME)
+    socket.on('rotateFurniture', (data) => {
+        if (!players[socket.id] || !data || data.index === undefined) return;
+        let username = players[socket.id].name;
+        let uKey = dataManager.findUserKey(username) || username;
+        let uData = dataManager.persistentData.users[uKey];
+        if (!uData) return;
+
+        let parsed = dataManager.parseHouseRoom(players[socket.id].room);
+        if (!parsed || parsed.owner.toLowerCase() !== uKey.toLowerCase()) return;
+
+        if (!uData.houses) uData.houses = {};
+        let hType = parsed.houseType || (uData.house ? uData.house.type : 'standart');
+        let targetHouse = uData.houses[hType] || uData.house;
+        if (!targetHouse || !targetHouse.furniture) return;
+
+        let index = parseInt(data.index);
+        if (index >= 0 && index < targetHouse.furniture.length) {
+            let curItem = targetHouse.furniture[index];
+            let curRot = (typeof curItem.rotation === 'number') ? curItem.rotation : 0;
+            let newRot = (data.rotation !== undefined) ? (parseInt(data.rotation) % 4) : ((curRot + 1) % 4);
+            if (newRot < 0) newRot += 4;
+            let facingList = ['front-right', 'front-left', 'back-left', 'back-right'];
+            let newFacing = (data.facing !== undefined) ? data.facing : facingList[newRot];
+            
+            curItem.rotation = newRot;
+            curItem.facing = newFacing;
             uData.house = targetHouse;
             dataManager.savePersistentData();
 
@@ -185,13 +223,16 @@ function registerHousingHandlers(io, socket, players) {
         }
     });
 
-    // 6. EV VERİSİ SORGULAMA
+    // 6. EV VERİSİ SORGULAMA (KAPI KİLİDİ KONTROLLÜ)
     socket.on('getHouseData', (data) => {
         let rawTarget = typeof data === 'object' && data ? data.owner : data;
         rawTarget = (rawTarget || players[socket.id]?.name || "").trim();
         let targetUser = dataManager.findUserKey(rawTarget) || rawTarget;
         let tData = dataManager.persistentData.users[targetUser];
         let reqType = typeof data === 'object' && data ? data.type : null;
+
+        let myName = players[socket.id]?.name || "";
+        let isOwner = (myName.toLowerCase() === targetUser.toLowerCase());
 
         if (tData) {
             let targetHouse = null;
@@ -206,10 +247,31 @@ function registerHousingHandlers(io, socket, players) {
             }
 
             if (targetHouse) {
+                let housePrivacy = targetHouse.privacy || 'public'; // Varsayılan: Herkese açık
+
+                // Kapı Kilidi Kontrolü
+                if (!isOwner) {
+                    if (housePrivacy === 'locked') {
+                        socket.emit('gameError', "🔒 Bu evin kapısı kilitli! Yalnızca ev sahibi girebilir.");
+                        return;
+                    }
+                    if (housePrivacy === 'friends') {
+                        let isFriend = (tData.friends || []).some(f => {
+                            let fName = typeof f === 'string' ? f : (f ? f.username : '');
+                            return fName.toLowerCase() === myName.toLowerCase();
+                        });
+                        if (!isFriend) {
+                            socket.emit('gameError', "👥 Bu ev yalnızca arkadaşlara açık!");
+                            return;
+                        }
+                    }
+                }
+
                 socket.emit('houseDataUpdate', {
                     ...targetHouse,
                     owner: targetUser,
                     type: reqType || targetHouse.type || 'standart',
+                    privacy: housePrivacy,
                     houseId: `${targetUser}_${reqType || targetHouse.type}`
                 });
                 return;
@@ -218,7 +280,108 @@ function registerHousingHandlers(io, socket, players) {
         socket.emit('houseDataUpdate', null);
     });
 
-    // 7. KULLANILABİLİR EVLERİ LİSTELEME
+    // 6.1 EV KAPI KİLİDİ AYARLAMA (HERKESE AÇIK / ARKADAŞLAR / KİLİTLİ)
+    socket.on('setHousePrivacy', (data) => {
+        if (!players[socket.id] || !data || !data.privacy) return;
+        let username = players[socket.id].name;
+        let uKey = dataManager.findUserKey(username) || username;
+        let uData = dataManager.persistentData.users[uKey];
+        if (!uData) return;
+
+        let hType = data.type || (uData.house ? uData.house.type : 'standart');
+        if (!uData.houses) uData.houses = {};
+        let targetHouse = uData.houses[hType] || uData.house;
+        if (!targetHouse) return;
+
+        const allowed = ['public', 'friends', 'locked'];
+        if (!allowed.includes(data.privacy)) return;
+
+        targetHouse.privacy = data.privacy;
+        uData.houses[hType] = targetHouse;
+        uData.house = targetHouse;
+        dataManager.savePersistentData();
+
+        socket.emit('housePrivacyUpdated', { type: hType, privacy: data.privacy });
+        let privLabel = data.privacy === 'public' ? '🌐 Herkese Açık (Mahalledeki herkes gelebilir)' : (data.privacy === 'locked' ? '🔒 Kilitli (Sadece Sen)' : '👥 Yalnızca Arkadaşlar');
+        socket.emit('systemMessage', `🚪 Ev kapı kilidi güncellendi: ${privLabel}`);
+        io.to(players[socket.id].room).emit('housePrivacySync', { privacy: data.privacy });
+    });
+
+    // 6.2 GRAMOFON MÜZİK ÇALARI (SADECE EV SAHİBİ ÇALABİLİR)
+    let gramophonePlayingRooms = {};
+    socket.on('toggleGramophone', () => {
+        if (!players[socket.id]) return;
+        let username = players[socket.id].name;
+        let uKey = dataManager.findUserKey(username) || username;
+        let curRoom = players[socket.id].room;
+        let parsed = dataManager.parseHouseRoom(curRoom);
+        if (!parsed) return;
+
+        if (parsed.owner.toLowerCase() !== uKey.toLowerCase()) {
+            socket.emit('gameError', "🎶 Gramofonu yalnızca ev sahibi açıp kapatabilir!");
+            return;
+        }
+
+        let isPlaying = !gramophonePlayingRooms[curRoom];
+        gramophonePlayingRooms[curRoom] = isPlaying;
+
+        io.to(curRoom).emit('gramophoneStateUpdate', {
+            isPlaying: isPlaying,
+            owner: parsed.owner
+        });
+
+        socket.emit('systemMessage', isPlaying ? "🎶 Gramofon çalıştırıldı! Nostaljik melodiler çalıyor..." : "⏹️ Gramofon kapatıldı.");
+    });
+
+    // 6.1 LİMONATA STANDINDAN LİMONATA SATIN ALMA (15 TL)
+    socket.on('buyLemonadeFromStand', (data) => {
+        if (!players[socket.id] || !data) return;
+        let buyerName = players[socket.id].name;
+        let buyerKey = dataManager.findUserKey(buyerName) || buyerName;
+        let buyerData = dataManager.persistentData.users[buyerKey];
+        if (!buyerData) return;
+
+        const LEMONADE_PRICE = 15;
+        if ((buyerData.money || 0) < LEMONADE_PRICE) {
+            socket.emit('gameError', "Limonata satın almak için yeterli paranız yok! (15 TL gerekli)");
+            return;
+        }
+
+        let ownerName = data.owner;
+        let ownerKey = dataManager.findUserKey(ownerName) || ownerName;
+        let ownerData = dataManager.persistentData.users[ownerKey];
+
+        // Alıcıdan 15 TL düş
+        buyerData.money = Math.max(0, buyerData.money - LEMONADE_PRICE);
+        players[socket.id].money = buyerData.money;
+        socket.emit('moneyUpdate', buyerData.money);
+
+        // Ev sahibine 15 TL ekle (kullanıcı kuralı: "limonata satın aldıkça ev sahibine gitsin o para ve bir limonata sattınız bildirimiyle belirtsin bunu.")
+        if (ownerData) {
+            ownerData.money = (ownerData.money || 0) + LEMONADE_PRICE;
+
+            // Eğer ev sahibi o an oyundaysa canlı bildirim ve bakiye güncellemesi gönder
+            for (let sid in players) {
+                if (players[sid] && players[sid].name && players[sid].name.toLowerCase() === ownerName.toLowerCase()) {
+                    players[sid].money = ownerData.money;
+                    io.to(sid).emit('moneyUpdate', ownerData.money);
+                    io.to(sid).emit('lemonadeSaleNotification', {
+                        buyer: buyerName,
+                        amount: LEMONADE_PRICE
+                    });
+                    io.to(sid).emit('systemMessage', `🍋 [${buyerName}] sizden 1 bardak taze limonata satın aldı! Hesabınıza +15 TL eklendi.`);
+                    break;
+                }
+            }
+        }
+        dataManager.savePersistentData();
+
+        // Alıcıya başarı mesajı
+        socket.emit('lemonadePurchasedSuccess', { amount: LEMONADE_PRICE });
+        socket.emit('systemMessage', `🍋 Buz gibi taze limonatayı afiyetle içtiniz! (-15 TL ev sahibine ödendi)`);
+    });
+
+    // 7. KULLANILABİLİR EVLERİ LİSTELEME (HERKESE AÇIK EVLER DAHİL)
     socket.on('getAvailableHouses', () => {
         if (!players[socket.id]) return;
         let username = players[socket.id].name;
@@ -227,18 +390,25 @@ function registerHousingHandlers(io, socket, players) {
         if (!uData) return;
 
         let availableList = [];
+        let addedKeys = new Set();
+
+        // 1. Kendi Evlerim
         let myHouses = uData.houses || (uData.house ? { [uData.house.type]: uData.house } : {});
         for (let hType in myHouses) {
             let hObj = myHouses[hType];
+            let k = `${uKey}_${hType}`;
+            addedKeys.add(k);
             availableList.push({
                 owner: uKey,
-                houseId: `${uKey}_${hType}`,
+                houseId: k,
                 type: hType,
                 isSelf: true,
+                privacy: hObj.privacy || 'public',
                 furnitureCount: (hObj.furniture || []).length
             });
         }
 
+        // 2. Arkadaşlarımın Evleri
         let friends = uData.friends || [];
         friends.forEach(fName => {
             let clean = typeof fName === 'string' ? fName : (fName ? fName.username : '');
@@ -249,16 +419,44 @@ function registerHousingHandlers(io, socket, players) {
                 let fHouses = fData.houses || (fData.house ? { [fData.house.type]: fData.house } : {});
                 for (let hType in fHouses) {
                     let hObj = fHouses[hType];
+                    let k = `${fKey}_${hType}`;
+                    if (!addedKeys.has(k)) {
+                        addedKeys.add(k);
+                        availableList.push({
+                            owner: fKey,
+                            houseId: k,
+                            type: hType,
+                            isSelf: false,
+                            privacy: hObj.privacy || 'public',
+                            furnitureCount: (hObj.furniture || []).length
+                        });
+                    }
+                }
+            }
+        });
+
+        // 3. Mahalledeki Herkese Açık Evler (Public Houses)
+        for (let otherUser in dataManager.persistentData.users) {
+            if (otherUser.toLowerCase() === uKey.toLowerCase()) continue;
+            let oData = dataManager.persistentData.users[otherUser];
+            let oHouses = oData.houses || (oData.house ? { [oData.house.type]: oData.house } : {});
+            for (let hType in oHouses) {
+                let hObj = oHouses[hType];
+                let k = `${otherUser}_${hType}`;
+                if (!addedKeys.has(k) && hObj.privacy === 'public') {
+                    addedKeys.add(k);
                     availableList.push({
-                        owner: fKey,
-                        houseId: `${fKey}_${hType}`,
+                        owner: otherUser,
+                        houseId: k,
                         type: hType,
                         isSelf: false,
+                        isPublicCommunity: true,
+                        privacy: 'public',
                         furnitureCount: (hObj.furniture || []).length
                     });
                 }
             }
-        });
+        }
 
         socket.emit('availableHousesList', {
             houses: availableList,

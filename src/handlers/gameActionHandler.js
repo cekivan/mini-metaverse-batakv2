@@ -177,11 +177,21 @@ function registerGameActionHandlers(io, socket, players) {
         }
     });
 
+    socket.on('batakVoteRematch', () => {
+        let instance = gameCoordinator.getBatakInstance(socket.id);
+        if (instance && instance.game) {
+            gameCoordinator.handleBatakVoteRematch(instance.game, socket.id, true, io, players);
+        }
+    });
+
     // 8. BİLARDO DİNLEYİCİLERİ
     socket.on('billiardShoot', (data) => {
         let instance = gameCoordinator.getBilliardInstance(socket.id);
         if (instance && data) {
-            instance.engine.shootBall(instance.game, socket.id, data.angle, data.power, data.spinX, data.spinY);
+            let ok = instance.engine.shootBall(instance.game, socket.id, data.angle, data.power, 0, 0);
+            if (ok) {
+                instance.game._forceUpdate = true;
+            }
         }
     });
 
@@ -189,6 +199,13 @@ function registerGameActionHandlers(io, socket, players) {
         let instance = gameCoordinator.getBilliardInstance(socket.id);
         if (instance && pos && instance.engine.placeWhiteBall(instance.game, socket.id, pos.x, pos.y)) {
             socket.emit('billiardBallPlaced');
+        }
+    });
+
+    socket.on('billiardVoteRematch', () => {
+        let instance = gameCoordinator.getBilliardInstance(socket.id);
+        if (instance && instance.game) {
+            gameCoordinator.handleBilliardVoteRematch(instance.game, socket.id, true, io, players);
         }
     });
 
@@ -253,6 +270,10 @@ function registerGameActionHandlers(io, socket, players) {
             if (res.success) {
                 gameCoordinator.sendOkey101Update(instance.game, io, players);
             } else {
+                if (res.roundEnded || res.finished) {
+                    gameCoordinator.sendOkey101Update(instance.game, io, players);
+                    gameCoordinator.checkOkey101RoundEnd(instance.game, io, players);
+                }
                 socket.emit('gameError', res.msg);
             }
         }
@@ -307,7 +328,7 @@ function registerGameActionHandlers(io, socket, players) {
             if (res.success) {
                 socket.emit('systemMessage', res.msg);
                 gameCoordinator.sendOkey101Update(instance.game, io, players);
-                if (res.finished) {
+                if (res.finished || res.roundEnded) {
                     gameCoordinator.checkOkey101RoundEnd(instance.game, io, players);
                 }
             } else {
@@ -322,11 +343,20 @@ function registerGameActionHandlers(io, socket, players) {
             let res = instance.engine.discardTile(instance.game, socket.id, tileId);
             if (res.success) {
                 gameCoordinator.sendOkey101Update(instance.game, io, players);
-                if (res.roundEnded) {
+                if (res.finished || res.roundEnded) {
                     gameCoordinator.checkOkey101RoundEnd(instance.game, io, players);
                 }
             } else {
                 socket.emit('gameError', res.msg);
+            }
+        }
+    });
+
+    socket.on('okey101NextRound', () => {
+        let instance = gameCoordinator.getOkey101Instance(socket.id);
+        if (instance && instance.game) {
+            if (instance.game.gameOver) {
+                gameCoordinator.startNextOkey101Round(instance.game, io, players);
             }
         }
     });

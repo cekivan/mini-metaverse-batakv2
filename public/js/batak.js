@@ -12,8 +12,22 @@ socket.on('batakUpdate', (data) => {
     if (window.startTurnTimer) window.startTurnTimer(data.turnTimeout || 30);
 
     // 1. SKOR TABLOSUNU DOLDURMA
+    window.lastBatakData = data;
     const roundDisp = document.getElementById('roundDisplay');
-    if (roundDisp) roundDisp.innerText = `${data.roundNumber || 1}. El`;
+    if (roundDisp) {
+        if (data.isTieBreaker) {
+            roundDisp.innerHTML = `<span class="tie-breaker-badge">⚡ Eşitlik Bozma Oyunu (6. Tur)</span>`;
+        } else {
+            let setNum = data.currentSet || 1;
+            let roundNum = data.setRound || 1;
+            roundDisp.innerHTML = `<span style="color:#60a5fa; font-weight:900;">${setNum}. Set</span> <span style="color:#94a3b8; font-weight:normal;">•</span> <span style="color:#2ecc71; font-weight:800;">${roundNum}/5. El</span>`;
+        }
+    }
+
+    const batakModal = document.getElementById('batakYazbozModal');
+    if (batakModal && batakModal.style.display === 'flex') {
+        renderBatakYazboz();
+    }
 
     let vacantSeatPid = null;
     let vacantSeatName = null;
@@ -197,3 +211,326 @@ function playCard(index) {
     if (window.playSound) window.playSound('card');
     socket.emit('playCard', index);
 }
+
+// ==========================================================================
+// BATAK KIRAATHANE YAZBOZU (SEKMELİ SAYFA SİSTEMİ) & RÖVANŞ
+// ==========================================================================
+let currentBatakTab = 1;
+
+function toggleBatakYazbozModal() {
+    const modal = document.getElementById('batakYazbozModal');
+    if (!modal) return;
+    if (modal.style.display === 'flex') {
+        closeBatakYazbozModal();
+    } else {
+        openBatakYazbozModal();
+    }
+}
+window.toggleBatakYazbozModal = toggleBatakYazbozModal;
+
+function openBatakYazbozModal() {
+    const modal = document.getElementById('batakYazbozModal');
+    if (modal) modal.style.display = 'flex';
+    if (window.lastBatakData) {
+        if (currentBatakTab === null || currentBatakTab === undefined) {
+            currentBatakTab = window.lastBatakData.currentSet || 1;
+        }
+        renderBatakYazboz();
+    }
+}
+window.openBatakYazbozModal = openBatakYazbozModal;
+
+function closeBatakYazbozModal() {
+    const modal = document.getElementById('batakYazbozModal');
+    if (modal) modal.style.display = 'none';
+}
+window.closeBatakYazbozModal = closeBatakYazbozModal;
+
+function selectBatakTab(tabKey) {
+    currentBatakTab = tabKey;
+    renderBatakYazboz();
+}
+window.selectBatakTab = selectBatakTab;
+
+function renderBatakYazboz() {
+    const data = window.lastBatakData;
+    if (!data) return;
+
+    const tabsContainer = document.getElementById('batakYazbozTabs');
+    const contentContainer = document.getElementById('batakYazbozContent');
+    const setTitleEl = document.getElementById('batakYazbozSetTitle');
+    const potInfoEl = document.getElementById('batakYazbozPotInfo');
+
+    if (!tabsContainer || !contentContainer) return;
+
+    let setsHist = data.setsHistory || [];
+    let curSetNum = data.currentSet || 1;
+    let maxSetNum = Math.max(curSetNum, setsHist.length);
+
+    // 1. Sekmeleri Çiz
+    tabsContainer.innerHTML = "";
+    for (let s = 1; s <= maxSetNum; s++) {
+        let isAct = (currentBatakTab === s);
+        let btn = document.createElement('button');
+        btn.className = `batak-tab-btn ${isAct ? 'active' : ''}`;
+        btn.innerText = `${s}. Set`;
+        btn.onclick = () => selectBatakTab(s);
+        tabsContainer.appendChild(btn);
+    }
+
+    // 🏆 Genel Sıralama Sekmesi (Tüm setlerin birleşik puanları)
+    let isGrandAct = (currentBatakTab === 'grand');
+    let grandBtn = document.createElement('button');
+    grandBtn.className = `batak-tab-btn grand ${isGrandAct ? 'active' : ''}`;
+    grandBtn.innerText = "🏆 Genel Sıralama";
+    grandBtn.onclick = () => selectBatakTab('grand');
+    tabsContainer.appendChild(grandBtn);
+
+    // Üst Bilgi
+    if (potInfoEl) {
+        let potVal = data.pot || (data.bet ? data.bet * data.players.length : 0);
+        potInfoEl.innerHTML = (data.bet > 0) ? `Set Bahsi: <b>${data.bet} TL</b> | Pot: <b>${potVal} TL</b>` : `🆓 Ücretsiz Masa`;
+    }
+
+    if (currentBatakTab === 'grand') {
+        if (setTitleEl) setTitleEl.innerText = "🏆 Genel Set Sıralaması & Toplam Set Puanları";
+        renderBatakGrandRankings(data, contentContainer, setsHist, maxSetNum);
+    } else {
+        let setNum = Number(currentBatakTab) || 1;
+        if (setTitleEl) setTitleEl.innerText = `${setNum}. Set Çetelesi`;
+        renderBatakSingleSet(data, contentContainer, setNum, setsHist);
+    }
+}
+
+function renderBatakSingleSet(data, container, setNum, setsHist) {
+    let histObj = setsHist.find(h => h.setNumber === setNum);
+    let isCompleted = !!histObj;
+    let isCurrentActive = (!isCompleted && setNum === (data.currentSet || 1));
+
+    let rounds = [];
+    let playerPids = data.players || [];
+    let finalScores = {};
+    let rankings = [];
+
+    if (isCompleted) {
+        rounds = histObj.rounds || [];
+        finalScores = histObj.finalScores || {};
+        rankings = histObj.rankings || [];
+    } else if (isCurrentActive) {
+        rounds = data.currentSetRounds || [];
+        playerPids.forEach(p => {
+            finalScores[p] = (data.playerInfos && data.playerInfos[p]) ? data.playerInfos[p].score : 0;
+        });
+        rankings = [...playerPids].map(p => ({
+            pid: p,
+            name: data.playerInfos[p]?.name || "Oyuncu",
+            score: finalScores[p] || 0
+        })).sort((a, b) => b.score - a.score);
+        let ptsTable = [3, 2, 1, 0];
+        rankings.forEach((r, idx) => {
+            r.rank = idx + 1;
+            r.setPoints = ptsTable[idx] !== undefined ? ptsTable[idx] : 0;
+        });
+    }
+
+    let html = `<table class="batak-yazboz-table">
+        <thead>
+            <tr>
+                <th style="width: 150px; text-align: left;">El / Tur</th>`;
+
+    playerPids.forEach(p => {
+        let pName = (data.playerInfos && data.playerInfos[p]) ? data.playerInfos[p].name : (histObj?.rankings?.find(r => r.pid === p)?.name || "Oyuncu");
+        let isMe = (p === socket.id);
+        html += `<th style="${isMe ? 'background:#dbeafe; color:#1e40af;' : ''}">${pName} ${isMe ? '(Sen)' : ''}</th>`;
+    });
+
+    html += `</tr></thead><tbody>`;
+
+    let totalRoundsToShow = 5;
+    if (rounds.some(r => r.roundNum === 6 || r.isTieBreaker) || data.isTieBreaker) {
+        totalRoundsToShow = 6;
+    }
+
+    for (let rNum = 1; rNum <= totalRoundsToShow; rNum++) {
+        let isTie = (rNum === 6);
+        let roundLabel = isTie ? `<span class="tie-breaker-badge">⚡ 6. El (Eşitlik Bozma)</span>` : `${rNum}. El`;
+        let roundRecord = rounds.find(r => r.roundNum === rNum);
+
+        html += `<tr><td style="text-align: left; font-weight: bold; background: ${isTie ? '#fef2f2' : '#f8fafc'};">${roundLabel}</td>`;
+
+        playerPids.forEach(p => {
+            let scoreText = "-";
+            if (roundRecord) {
+                let s = (roundRecord.handScores && roundRecord.handScores[p] !== undefined) ? roundRecord.handScores[p] : (roundRecord.scores ? roundRecord.scores[p] : null);
+                if (s !== null && s !== undefined) {
+                    let sColor = s > 0 ? '#16a34a' : (s < 0 ? '#dc2626' : '#64748b');
+                    let sPrefix = s > 0 ? '+' : '';
+                    scoreText = `<span style="color:${sColor}; font-weight:800;">${sPrefix}${s}</span>`;
+                }
+            } else if (isCurrentActive && rNum === (data.setRound || 1)) {
+                scoreText = `<span style="color:#d97706; font-size:11px; font-style:italic;">Oynanıyor...</span>`;
+            }
+            html += `<td>${scoreText}</td>`;
+        });
+
+        html += `</tr>`;
+    }
+
+    // Toplam Satırı
+    html += `<tr class="total-row"><td style="text-align: left;">📊 SET EL TOPLAMI</td>`;
+    playerPids.forEach(p => {
+        let tot = finalScores[p] !== undefined ? finalScores[p] : 0;
+        let tColor = tot > 0 ? '#15803d' : (tot < 0 ? '#b91c1c' : '#0f172a');
+        html += `<td style="color:${tColor}; font-size:15px;">${tot}</td>`;
+    });
+    html += `</tr>`;
+
+    // Sıralama Satırı
+    let medals = { 1: "🥇 1. (Zirve)", 2: "🥈 2.", 3: "🥉 3.", 4: "4." };
+    html += `<tr class="rank-row"><td style="text-align: left;">🏆 SET DERECESİ</td>`;
+    playerPids.forEach(p => {
+        let rankObj = rankings.find(r => r.pid === p);
+        let rankText = rankObj ? (medals[rankObj.rank] || `${rankObj.rank}.`) : "-";
+        html += `<td>${rankText}</td>`;
+    });
+    html += `</tr>`;
+
+    // Set Puanı Satırı
+    html += `<tr class="points-row"><td style="text-align: left;">⭐ KAZANILAN SET PUANI</td>`;
+    playerPids.forEach(p => {
+        let rankObj = rankings.find(r => r.pid === p);
+        let pts = rankObj ? rankObj.setPoints : 0;
+        let isChamp = (rankObj && rankObj.rank === 1);
+        let extraBadge = isChamp && isCompleted && histObj?.potAwarded ? `<div style="font-size:10px; color:#059669; font-weight:normal;">+${histObj.potAwarded} TL Pot</div>` : '';
+        html += `<td><b>+${pts} Puan</b>${extraBadge}</td>`;
+    });
+    html += `</tr>`;
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+function renderBatakGrandRankings(data, container, setsHist, maxSetNum) {
+    let playerPids = data.players || [];
+    let cumPoints = data.cumulativeSetPoints || {};
+
+    let grandRows = playerPids.map(p => {
+        let pName = (data.playerInfos && data.playerInfos[p]) ? data.playerInfos[p].name : "Oyuncu";
+        let setsWon = setsHist.filter(h => h.winnerId === p).length;
+        let totalPts = cumPoints[p] || 0;
+        return { pid: p, name: pName, setsWon: setsWon, totalPts: totalPts };
+    }).sort((a, b) => b.totalPts !== a.totalPts ? b.totalPts - a.totalPts : b.setsWon - a.setsWon);
+
+    grandRows.forEach((r, i) => { r.grandRank = i + 1; });
+
+    let medals = { 1: "🥇 1.", 2: "🥈 2.", 3: "🥉 3.", 4: "4." };
+
+    let html = `<table class="batak-yazboz-table">
+        <thead>
+            <tr>
+                <th style="width: 70px;">Derece</th>
+                <th style="text-align: left;">Oyuncu</th>`;
+
+    for (let s = 1; s <= maxSetNum; s++) {
+        html += `<th>${s}. Set Puanı</th>`;
+    }
+
+    html += `<th style="background:#fef3c7; color:#92400e;">🏆 Kazanılan Setler</th>
+             <th style="background:#dcfce7; color:#166534; font-size:14px;">⭐ TOPLAM SET PUANI</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    grandRows.forEach(row => {
+        let isMe = (row.pid === socket.id);
+        html += `<tr style="${isMe ? 'background:#eff6ff;' : ''}">
+            <td style="font-weight:900; font-size:14px;">${medals[row.grandRank] || `${row.grandRank}.`}</td>
+            <td style="text-align:left; font-weight:800;">${row.name} ${isMe ? '<span style="color:#2563eb;">(Sen)</span>' : ''}</td>`;
+
+        for (let s = 1; s <= maxSetNum; s++) {
+            let histObj = setsHist.find(h => h.setNumber === s);
+            let setPtsText = "-";
+            if (histObj && histObj.rankings) {
+                let rItem = histObj.rankings.find(r => r.pid === row.pid);
+                if (rItem) {
+                    setPtsText = `<span style="font-weight:800; color:#1d4ed8;">+${rItem.setPoints}</span>`;
+                }
+            } else if (s === (data.currentSet || 1)) {
+                setPtsText = `<span style="color:#d97706; font-size:11px;">Oynanıyor...</span>`;
+            }
+            html += `<td>${setPtsText}</td>`;
+        }
+
+        html += `<td style="font-weight:900; color:#b45309;">${row.setsWon} Set</td>
+                 <td style="font-weight:900; color:#15803d; font-size:16px; background:#f0fdf4;">${row.totalPts} Puan</td>
+        </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+// SOKET DİNLEYİCİLERİ - BATAK SET BİTİŞ & RÖVANŞ
+socket.on('batakSetCompleted', (data) => {
+    window.lastBatakData = { ...window.lastBatakData, ...data, setEnded: true };
+    openBatakYazbozModal();
+
+    const rematchSection = document.getElementById('batakRematchSection');
+    const titleEl = document.getElementById('batakRematchTitle');
+    const winnerAnnounce = document.getElementById('batakRematchWinnerAnnounce');
+    const betInfoEl = document.getElementById('batakRematchBetInfo');
+    const votesText = document.getElementById('batakRematchVotesText');
+    const acceptBtn = document.getElementById('batakRematchAcceptBtn');
+
+    if (rematchSection) rematchSection.style.display = 'block';
+    if (titleEl) titleEl.innerText = `🏆 ${data.setNumber}. Set Sona Erdi!`;
+    if (winnerAnnounce) {
+        let isMe = (data.winner?.pid === socket.id);
+        let potNotice = (data.potAwarded > 0) ? ` ve <b>${data.potAwarded} TL</b>'lik büyük potu kazandı!` : '!';
+        winnerAnnounce.innerHTML = isMe ? `🎉 Tebrikler, seti <b>${data.winner?.score} puanla</b> zirvede bitirdin${potNotice}` : `🎉 <b>${data.winner?.name}</b> seti ${data.winner?.score} puanla 1. tamamladı${potNotice}`;
+    }
+
+    if (betInfoEl) {
+        let totalPot = data.bet * (data.rankings ? data.rankings.length : 3);
+        betInfoEl.innerHTML = (data.bet > 0) ? `Yeni Set Bahsi: <b>${data.bet} TL</b> (Kişi Başı) | Kazanan Potu: <b>${totalPot} TL</b>` : `🆓 Ücretsiz Masa`;
+    }
+
+    if (votesText) votesText.innerText = "Yeni set için oyuncuların onayı bekleniyor...";
+    if (acceptBtn) {
+        acceptBtn.disabled = false;
+        acceptBtn.style.opacity = '1';
+        acceptBtn.innerHTML = "✅ Yeni Set Başlat";
+    }
+    if (window.playSound) window.playSound('victory');
+});
+
+socket.on('batakRematchStatus', (data) => {
+    const votesText = document.getElementById('batakRematchVotesText');
+    if (votesText && data.votes) {
+        let votedCount = Object.values(data.votes).filter(v => v).length;
+        votesText.innerText = `Oyuncuların onayı bekleniyor... (${votedCount}/${data.totalPlayers} Onay)`;
+    }
+});
+
+socket.on('batakNewSetStarted', (data) => {
+    const rematchSection = document.getElementById('batakRematchSection');
+    if (rematchSection) rematchSection.style.display = 'none';
+    currentBatakTab = data.setNumber || 1;
+    if (window.lastBatakData) {
+        window.lastBatakData.currentSet = data.setNumber;
+        window.lastBatakData.setEnded = false;
+    }
+    renderBatakYazboz();
+    if (window.playSound) window.playSound('card');
+});
+
+function acceptBatakRematch() {
+    const acceptBtn = document.getElementById('batakRematchAcceptBtn');
+    if (acceptBtn) {
+        acceptBtn.disabled = true;
+        acceptBtn.style.opacity = '0.6';
+        acceptBtn.innerHTML = "⏳ Onaylandı, Diğerleri Bekleniyor...";
+    }
+    socket.emit('batakVoteRematch');
+}
+window.acceptBatakRematch = acceptBatakRematch;

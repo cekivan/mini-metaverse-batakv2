@@ -4,19 +4,65 @@ const dataManager = require('../dataManager');
 function registerSocialHandlers(io, socket, players, helpers) {
     const { givePlayerTeaWithTimer } = helpers;
 
-    // 1. SOHBET MESAJI (RATE-LIMIT KORUMALI)
-    socket.lastChatTime = 0;
+    // 1. SOHBET MESAJI (50 KARAKTER LİMİTİ & SPAM KORUMASI: 1 SN'DE 3 MESAJ -> 3 SN BEKLEME)
+    socket.chatTimestamps = [];
+    socket.chatCooldownUntil = 0;
+
     socket.on('chatMessage', (msg) => {
         if (!players[socket.id] || !msg) return;
 
+        let senderName = players[socket.id].name;
+        let uData = dataManager.persistentData.users[senderName];
+        if (uData && uData.muteExpiresAt) {
+            if (Date.now() < uData.muteExpiresAt) {
+                let remainingSec = Math.ceil((uData.muteExpiresAt - Date.now()) / 1000);
+                let remMin = Math.floor(remainingSec / 60);
+                let remSec = remainingSec % 60;
+                let timeStr = remMin > 0 ? `${remMin} dakika ${remSec} saniye` : `${remSec} saniye`;
+                socket.emit('chatSpamWarning', {
+                    message: `🔇 Susturuldunuz! Sebep: ${uData.muteReason || 'Yönetici'}. Kalan süre: ${timeStr}`,
+                    cooldownRemaining: Math.min(remMin * 60 + remSec, 5)
+                });
+                return;
+            } else {
+                uData.muteExpiresAt = null;
+                uData.muteReason = null;
+                uData.mutedBy = null;
+                dataManager.savePersistentData();
+                players[socket.id].isMuted = false;
+            }
+        }
+
         const now = Date.now();
-        if (now - socket.lastChatTime < 300) {
-            // Saniyede 3'ten fazla mesaj atamaz
+        if (socket.chatCooldownUntil && now < socket.chatCooldownUntil) {
+            let remain = Math.ceil((socket.chatCooldownUntil - now) / 1000);
+            socket.emit('chatSpamWarning', { waitSeconds: remain });
             return;
         }
-        socket.lastChatTime = now;
 
-        let cleanMsg = dataManager.sanitizeString(msg, 150);
+        socket.chatTimestamps = (socket.chatTimestamps || []).filter(t => now - t < 1000);
+        if (socket.chatTimestamps.length >= 3) {
+            socket.chatCooldownUntil = now + 3000;
+            socket.emit('chatSpamWarning', { waitSeconds: 3 });
+            socket.emit('systemMessage', "⚠️ Çok hızlı mesaj gönderiyorsunuz! Lütfen 3 saniye bekleyin.");
+            return;
+        }
+        socket.chatTimestamps.push(now);
+
+        let cleanMsg = dataManager.sanitizeString(msg, 50); // Maksimum 50 karakter
+
+        // Geliştirici / Test Kısayolu: /testbaba
+        if (cleanMsg === '/testbaba' || cleanMsg === '/baba') {
+            socket.emit('fatherCaughtPrompt', {
+                title: "Denizden Baban Çıktı!",
+                proverb: "Denizden babam çıksa yerim...",
+                description: "Oltana takılan şey bir balık değil... Baban! Ne yapmak istersin?",
+                eatReward: 300,
+                playerGender: players[socket.id].gender || 'male'
+            });
+            return;
+        }
+
         players[socket.id].msg = cleanMsg;
         io.to(players[socket.id].room).emit('chatUpdate', { id: socket.id, msg: cleanMsg });
 
@@ -27,41 +73,63 @@ function registerSocialHandlers(io, socket, players, helpers) {
         }, 5000);
     });
 
-    // 2. SOSYAL EYLEMLER (EL SALLAMA, DANS, ALKIŞ, ÇAY İÇME)
-    socket.on('playerAction', (actionData) => {
-        if (players[socket.id] && actionData) {
-            players[socket.id].action = actionData.action;
-            if (actionData.action === 'tea') {
-                let username = players[socket.id].name;
-                let userData = dataManager.persistentData.users[username];
-                if (userData) {
-                    if (userData.money < 10) {
-                        socket.emit('gameError', "Çay 10 TL! Yetersiz bakiye.");
-                        return;
-                    }
-                    userData.money -= 10;
-                    dataManager.savePersistentData();
-                    socket.emit('moneyUpdate', userData.money);
-                }
-                givePlayerTeaWithTimer(socket.id, username, 300000);
-                socket.emit('systemMessage', "☕ Çay Ocağı'ndan taze tavşan kanı çay aldın (-10 TL). Afiyet olsun! (5 dakika elinde)");
-                return;
-            }
+    // 1.1 HIZLI EMOJİ BALONCUĞU TEPKİSİ
+    socket.on('playerEmoji', (emoji) => {
+        if (!players[socket.id] || !emoji) return;
+        const validEmojis = ['😂', '😡', '❤️', '👋', '🎉', '😎', '☕', '🔥'];
+        if (!validEmojis.includes(emoji)) return;
+        io.to(players[socket.id].room).emit('playerEmojiUpdate', {
+            id: socket.id,
+            emoji: emoji
+        });
+    });
 
+    // 2. SOSYAL EYLEMLER (EL SALLAMA, DANS, ALKIŞ, ÇAY İÇME, OTURMA)
+    socket.on('playerAction', (actionData) => {
+        if (!players[socket.id]) return;
+
+        if (!actionData || !actionData.action || actionData.action === 'stand') {
+            players[socket.id].action = null;
             io.to(players[socket.id].room).emit('playerActionUpdate', {
                 id: socket.id,
-                action: actionData.action,
+                action: null,
                 hasTea: players[socket.id].hasTea
             });
+            return;
+        }
 
-            if (actionData.action !== 'tea') {
-                setTimeout(() => {
-                    if (players[socket.id] && players[socket.id].action === actionData.action) {
-                        players[socket.id].action = null;
-                        io.to(players[socket.id].room).emit('playerActionUpdate', { id: socket.id, action: null, hasTea: players[socket.id].hasTea });
-                    }
-                }, 3500);
+        players[socket.id].action = actionData.action;
+        if (actionData.action === 'tea') {
+            let username = players[socket.id].name;
+            let userData = dataManager.persistentData.users[username];
+            if (userData) {
+                if (userData.money < 10) {
+                    socket.emit('gameError', "Çay 10 TL! Yetersiz bakiye.");
+                    return;
+                }
+                userData.money -= 10;
+                dataManager.savePersistentData();
+                socket.emit('moneyUpdate', userData.money);
             }
+            givePlayerTeaWithTimer(socket.id, username, 300000);
+            socket.emit('systemMessage', "☕ Çay Ocağı'ndan taze tavşan kanı çay aldın (-10 TL). Afiyet olsun! (5 dakika elinde)");
+            return;
+        }
+
+        io.to(players[socket.id].room).emit('playerActionUpdate', {
+            id: socket.id,
+            action: actionData.action,
+            hasTea: players[socket.id].hasTea
+        });
+
+        // 'tea' ve 'sitting' dışındaki eylemler (dans, el sallama, alkış) 3.5 sn sonra normale döner
+        if (actionData.action !== 'tea' && actionData.action !== 'sitting') {
+            setTimeout(() => {
+                if (players[socket.id] && players[socket.id].action === actionData.action) {
+                    players[socket.id].action = null;
+                    io.to(players[socket.id].room).emit('playerActionUpdate', { id: socket.id, action: null, hasTea: players[socket.id].hasTea });
+                }
+            }, 3500);
         }
     });
 

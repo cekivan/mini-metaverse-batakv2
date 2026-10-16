@@ -41,6 +41,7 @@ function getTableOptionsList(baseType, activeGames = {}, players = {}) {
             let isGameActive = !!activeGames[tid];
             let currentNames = [];
             let vacantSeats = [];
+            let botSeats = [];
 
             if (isGameActive) {
                 let g = activeGames[tid];
@@ -54,8 +55,30 @@ function getTableOptionsList(baseType, activeGames = {}, players = {}) {
                         });
                     }
                 }
+                g.players.forEach((pid, idx) => {
+                    let isBot = pid.startsWith('bot_') || g.playerProfiles?.[pid]?.isBot || players[pid]?.isBot;
+                    if (isBot) {
+                        let bName = g.playerProfiles?.[pid]?.name || players[pid]?.name || `Bot ${idx + 1}`;
+                        botSeats.push({
+                            botPid: pid,
+                            name: bName,
+                            seatIndex: idx
+                        });
+                    }
+                });
             } else {
                 currentNames = t.players.map(pid => players[pid]?.name || "Oyuncu");
+                t.players.forEach((pid, idx) => {
+                    let isBot = pid.startsWith('bot_') || players[pid]?.isBot;
+                    if (isBot) {
+                        let bName = players[pid]?.name || `Bot ${idx + 1}`;
+                        botSeats.push({
+                            botPid: pid,
+                            name: bName,
+                            seatIndex: idx
+                        });
+                    }
+                });
             }
 
             tableList.push({
@@ -70,7 +93,9 @@ function getTableOptionsList(baseType, activeGames = {}, players = {}) {
                 players: currentNames,
                 spectatorCount: (activeGames[tid]?.spectators || []).length,
                 hasVacantSeat: vacantSeats.length > 0,
-                vacantSeats: vacantSeats
+                vacantSeats: vacantSeats,
+                hasBotSeat: botSeats.length > 0,
+                botSeats: botSeats
             });
         }
     }
@@ -92,7 +117,7 @@ function createNewTable(payload, activeGames = {}) {
     let customName = (payload.name || "").trim();
     let bet = parseInt(payload.bet) || 0;
     if (bet < 0) bet = 0;
-    if (bet > 1000) bet = 1000;
+    if (bet > 5000) bet = 5000;
 
     let mode = payload.mode;
     if (!mode) {
@@ -121,6 +146,16 @@ function createNewTable(payload, activeGames = {}) {
 
 function addBotToTable(tableId, activeGames = {}, players = {}) {
     let table = tables[tableId];
+    if (!table) {
+        for (let tid in tables) {
+            let cand = tables[tid];
+            if (cand.baseType === tableId && !activeGames[tid] && cand.players.length < cand.min) {
+                table = cand;
+                tableId = tid;
+                break;
+            }
+        }
+    }
     if (!table) return { success: false, message: "Masa bulunamadı!" };
     if (activeGames[tableId]) return { success: false, message: "Bu masada oyun zaten başlamış!" };
     if (table.players.length >= table.min) return { success: false, message: "Masa zaten dolu!" };

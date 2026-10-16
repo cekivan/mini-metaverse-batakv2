@@ -59,6 +59,49 @@ body {
     transform: translateY(0);
 }
 
+/* MEKANLAR AÇILIR MENÜSÜ */
+.places-dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+}
+.place-menu-item {
+    width: 100%;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #f1f5f9;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+}
+.place-menu-item:hover {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    transform: translateX(4px);
+}
+
+.emoji-quick-btn {
+    background: rgba(255, 255, 255, 0.12);
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 3px 6px;
+    transition: transform 0.15s, background 0.15s;
+    line-height: 1;
+}
+
+.emoji-quick-btn:hover {
+    transform: scale(1.25);
+    background: rgba(255, 255, 255, 0.25);
+}
+
 .btn-street { background: linear-gradient(135deg, #10b981, #059669); }
 .btn-cafe { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .btn-beach { background: linear-gradient(135deg, #0284c7, #0369a1); }
@@ -66,9 +109,14 @@ body {
 
 /* 2. OYUN CANVAS */
 #gameCanvas { 
+    width: 800px;
+    max-width: 96vw;
+    height: auto;
+    aspect-ratio: 800 / 500;
+    display: block;
+    margin: 12px auto 0 auto;
     border: 4px solid #334155; 
     border-radius: 16px; 
-    margin-top: 65px; 
     touch-action: none;
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
     cursor: default;
@@ -424,24 +472,26 @@ body {
     width: 600px; 
     height: 300px; 
     margin: 0 auto; 
-    background: radial-gradient(ellipse at center, #007536 0%, #004d24 100%); 
+    background: radial-gradient(ellipse at center, #0a8747 0%, #066333 65%, #033f20 100%); 
     position: relative; 
-    border-radius: 14px; 
-    border: 14px solid #4a2810; 
-    box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 12px 28px rgba(0,0,0,0.6);
+    border-radius: 16px; 
+    border: 16px solid #3d200a; 
+    outline: 2px solid #5a3212;
+    box-shadow: inset 0 0 24px rgba(0,0,0,0.85), 0 16px 36px rgba(0,0,0,0.7), inset 0 0 2px rgba(255,255,255,0.1);
     user-select: none; 
     touch-action: none; 
     cursor: crosshair; 
 }
 
 .pocket { 
-    width: 32px; 
-    height: 32px; 
-    background: radial-gradient(circle, #050505 50%, #1a1a1a 100%); 
+    width: 34px; 
+    height: 34px; 
+    background: radial-gradient(circle, #050505 50%, #151515 90%, #2a2a2a 100%); 
     border-radius: 50%; 
     position: absolute; 
     z-index: 1; 
-    box-shadow: inset 2px 2px 6px rgba(0,0,0,0.9), 0 0 4px rgba(255,255,255,0.1); 
+    box-shadow: inset 3px 3px 8px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.6); 
+    border: 1px solid rgba(255,255,255,0.06);
 }
 
 /* 3D GERÇEKÇİ TOP STİLLERİ */
@@ -455,7 +505,20 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 2px 3px 5px rgba(0,0,0,0.6);
+    box-shadow: 2px 3px 6px rgba(0,0,0,0.65), inset -1px -1px 3px rgba(0,0,0,0.4);
+}
+
+.ball::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    width: 6px;
+    height: 4px;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 80%);
+    border-radius: 50%;
+    transform: rotate(-30deg);
+    pointer-events: none;
 }
 
 .ball.solid {
@@ -473,7 +536,7 @@ body {
 
 .ball.white {
     background: radial-gradient(circle at 35% 35%, #ffffff 0%, #dfe6e9 70%, #b2bec3 100%);
-    box-shadow: 0 0 6px rgba(255,255,255,0.7), 2px 3px 5px rgba(0,0,0,0.5);
+    box-shadow: 0 0 6px rgba(255,255,255,0.7), 2px 3px 6px rgba(0,0,0,0.6);
 }
 
 .ball-num {
@@ -1452,7 +1515,7 @@ body {
 .zone-pers-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 3px;
     align-items: center;
     min-height: 40px;
 }
@@ -1460,7 +1523,7 @@ body {
 .zone-pers-col {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 3px;
     flex: 1;
 }
 
@@ -1514,7 +1577,7 @@ body {
 .okey-rack-shelf {
     display: grid;
     grid-template-columns: repeat(15, minmax(20px, 1fr));
-    gap: 4px;
+    gap: 2px;
     padding: 4px 6px;
     background: linear-gradient(180deg, #180902 0%, #2b0f03 30%, #150600 100%);
     border-radius: 8px;
@@ -1580,11 +1643,21 @@ body {
     padding: 6px 10px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 3px;
     margin-right: 8px;
     margin-bottom: 6px;
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.1);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    user-select: none;
+}
+
+.okey-open-per-group > div {
+    pointer-events: none;
+}
+
+.okey-open-per-group button {
+    pointer-events: auto;
 }
 
 /* Sürüklenen Taş Masadaki Per Üzerine Geldiğinde Vurgu (İşleme Hedefi) */
@@ -1593,6 +1666,20 @@ body {
     background: linear-gradient(145deg, rgba(14, 165, 233, 0.35), rgba(2, 132, 199, 0.25)) !important;
     box-shadow: 0 0 18px rgba(56, 189, 248, 0.75), inset 0 0 10px rgba(56, 189, 248, 0.4) !important;
     transform: scale(1.05);
+}
+
+/* Sürüklenen Taş Taş Atma Bölgesine Geldiğinde Vurgu */
+.okey-corner-slot.discard-drag-over {
+    border: 2px dashed #ef4444 !important;
+    background: linear-gradient(145deg, rgba(239, 68, 68, 0.45), rgba(185, 28, 28, 0.35)) !important;
+    box-shadow: 0 0 22px rgba(239, 68, 68, 0.9), inset 0 0 12px rgba(239, 68, 68, 0.6) !important;
+    transform: scale(1.08);
+}
+
+.discard-btn-drag-over {
+    outline: 3px dashed #facc15 !important;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.9) !important;
+    transform: scale(1.1) !important;
 }
 
 /* Kıraathane Çay Bardağı ve Buhar Animasyonu */
@@ -1946,4 +2033,1548 @@ body {
 .voice-toast.show {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+}
+
+/* ==========================================================
+   🎰 MULTIPLAYER CASINO BLACKJACK (21) STİLLERİ
+   ========================================================== */
+.blackjack-modal-content {
+    background: radial-gradient(ellipse at 50% 20%, #0d1b13 0%, #06110a 70%, #020704 100%) !important;
+    border: 3px solid #b45309 !important;
+    border-radius: 24px !important;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.95), 0 0 40px rgba(245, 158, 11, 0.2), inset 0 2px 10px rgba(254, 240, 138, 0.2) !important;
+    max-width: 960px !important;
+    width: 96% !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+}
+
+.blackjack-header {
+    background: linear-gradient(180deg, #18181b 0%, #09090b 100%);
+    border-bottom: 2px solid #b45309;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.blackjack-title {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: #fef08a;
+    text-shadow: 0 0 12px rgba(250, 204, 21, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.bj-badge {
+    background: linear-gradient(135deg, #b45309, #d97706);
+    color: #fffbeb;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+    border: 1px solid #fde68a;
+}
+
+.blackjack-table-container {
+    width: 95%;
+    max-width: 820px;
+    min-height: 610px;
+    padding: 16px 20px 22px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    background: radial-gradient(circle at 50% 25%, #064e3b 0%, #022c22 65%, #011510 100%);
+    border: 3px solid #b45309;
+    border-radius: 22px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95), 0 0 30px rgba(245, 158, 11, 0.2);
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+/* Gerçekçi Lüks Kadife Çuha Masa (Semi-Oval Velvet Felt Table) */
+.bj-felt-table {
+    width: 100%;
+    max-width: 780px;
+    min-height: 350px;
+    background: radial-gradient(circle at 50% 20%, #059669 0%, #047857 40%, #065f46 75%, #064e3b 100%);
+    border: 12px solid #3d1c06;
+    outline: 3px solid #b45309;
+    border-radius: 20px 20px 240px 240px;
+    box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.8), 0 16px 40px rgba(0, 0, 0, 0.85);
+    position: relative;
+    padding: 12px 14px 24px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+}
+
+/* Çuha Masa Dikiş Hattı */
+.bj-felt-table::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    border: 2px dashed rgba(254, 240, 138, 0.28);
+    border-radius: 12px 12px 240px 240px;
+    pointer-events: none;
+}
+
+/* Krupiye Alanı */
+.bj-dealer-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 5;
+    margin-top: 4px;
+}
+
+.bj-dealer-name {
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: #fef08a;
+    text-transform: uppercase;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bj-dealer-cards {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    min-height: 94px;
+    margin-bottom: 6px;
+}
+
+.bj-dealer-score {
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid #facc15;
+    color: #fef08a;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 3px 12px;
+    border-radius: 9999px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.bj-shoe-indicator {
+    position: absolute;
+    top: 4px;
+    right: 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #cbd5e1;
+    background: rgba(15, 23, 42, 0.7);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Masa Ortası Baskı Yazıları */
+.bj-center-logo {
+    text-align: center;
+    margin: 8px 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+.bj-deck-rules {
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 2.5px;
+    color: rgba(254, 240, 138, 0.55);
+    text-transform: uppercase;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Durum Bildirim Şeridi */
+.bj-status-banner {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(250, 204, 21, 0.5);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+    color: #fef08a;
+    font-size: 14px;
+    font-weight: 800;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    margin: 4px auto 14px auto;
+    text-align: center;
+    max-width: 480px;
+    letter-spacing: 0.5px;
+    animation: bjStatusGlow 2s infinite alternate ease-in-out;
+}
+
+@keyframes bjStatusGlow {
+    0% { border-color: rgba(250, 204, 21, 0.4); box-shadow: 0 0 10px rgba(250, 204, 21, 0.2); }
+    100% { border-color: #facc15; box-shadow: 0 0 20px rgba(250, 204, 21, 0.5); }
+}
+
+/* 3 Koltuklu Oyuncu Alanı */
+.bj-seats-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    z-index: 5;
+    position: relative;
+    padding: 0 10px;
+}
+
+.bj-seat-box {
+    background: radial-gradient(circle at 50% 30%, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.96));
+    border: 2px solid rgba(254, 240, 138, 0.2);
+    border-radius: 14px;
+    padding: 8px 6px;
+    min-height: 145px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75);
+    transition: all 0.25s ease;
+}
+
+.bj-seat-box.empty {
+    border: 2px dashed rgba(255, 255, 255, 0.25);
+    background: rgba(15, 23, 42, 0.45);
+    justify-content: center;
+}
+
+.bj-seat-box.my-seat {
+    border-color: #38bdf8 !important;
+    box-shadow: 0 0 22px rgba(56, 189, 248, 0.5) !important;
+}
+
+.bj-seat-box.active-turn {
+    border-color: #facc15 !important;
+    box-shadow: 0 0 28px rgba(250, 204, 21, 0.85), inset 0 0 15px rgba(250, 204, 21, 0.3) !important;
+    animation: activeTurnPulse 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes activeTurnPulse {
+    0% { transform: translateY(0); box-shadow: 0 0 16px rgba(250, 204, 21, 0.5); }
+    100% { transform: translateY(-4px); box-shadow: 0 0 32px rgba(250, 204, 21, 0.95); }
+}
+
+.bj-seat-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 5px;
+    font-size: 11px;
+}
+
+.bj-seat-user {
+    font-weight: 800;
+    color: #f1f5f9;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bj-seat-balance {
+    font-weight: 800;
+    color: #4ade80;
+    font-size: 11px;
+}
+
+.bj-seat-cards {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    min-height: 84px;
+    margin: 6px 0;
+    flex-wrap: wrap;
+}
+
+.bj-seat-info {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bj-seat-score {
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid #94a3b8;
+    color: #f8fafc;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 9999px;
+}
+
+.bj-seat-bet {
+    background: rgba(234, 179, 8, 0.2);
+    border: 1px solid #eab308;
+    color: #fde047;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 9999px;
+}
+
+/* Sonuç Rozetleri (Win, Loss, Push, Blackjack, Bust) */
+.bj-seat-result {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    z-index: 20;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
+    animation: popInResult 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popInResult {
+    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.bj-seat-result.win {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border: 2px solid #6ee7b7;
+    color: #ffffff;
+}
+
+.bj-seat-result.blackjack {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border: 2px solid #fef08a;
+    color: #ffffff;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.9);
+}
+
+.bj-seat-result.loss {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: 2px solid #fca5a5;
+    color: #ffffff;
+}
+
+.bj-seat-result.bust {
+    background: linear-gradient(135deg, #991b1b, #7f1d1d);
+    border: 2px solid #f87171;
+    color: #ffffff;
+}
+
+.bj-seat-result.push {
+    background: linear-gradient(135deg, #64748b, #475569);
+    border: 2px solid #cbd5e1;
+    color: #ffffff;
+}
+
+/* Masaya Otur & Kalk Butonları */
+.bj-sit-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    font-size: 13px;
+    font-weight: 900;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bj-sit-btn:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.7);
+    filter: brightness(1.1);
+}
+
+.bj-leave-btn {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.6);
+    color: #fca5a5;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.bj-leave-btn:hover {
+    background: #ef4444;
+    color: white;
+}
+
+/* Gerçekçi İskambil Kartı (Realistic Playing Card) */
+.bj-card {
+    width: 48px;
+    height: 72px;
+    background: #ffffff;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6), inset 0 0 2px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 3px 4px;
+    box-sizing: border-box;
+    position: relative;
+    user-select: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    border: 1px solid #d1d5db;
+    transition: transform 0.2s ease;
+}
+
+.bj-card.red {
+    color: #dc2626;
+}
+
+.bj-card.black {
+    color: #111827;
+}
+
+.bj-card-corner {
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.bj-card-corner.bottom-right {
+    transform: rotate(180deg);
+}
+
+.bj-card-suit-big {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 20px;
+    line-height: 1;
+    opacity: 0.9;
+}
+
+/* Kapalı Kart (Hole Card - Dark Royal Back Pattern) */
+.bj-card.hidden-card {
+    background: repeating-linear-gradient(
+        45deg,
+        #1e3a8a,
+        #1e3a8a 5px,
+        #172554 5px,
+        #172554 10px
+    );
+    border: 2px solid #f8fafc;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+}
+
+.bj-card-pattern {
+    width: 100%;
+    height: 100%;
+    border: 1px solid rgba(254, 240, 138, 0.6);
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fef08a;
+    font-size: 14px;
+}
+
+.bj-card-deal-anim {
+    animation: cardFlyIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes cardFlyIn {
+    0% { transform: translateY(-40px) scale(0.6) rotate(-10deg); opacity: 0; }
+    100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Alt Kontrol İstasyonu (Dock) */
+.blackjack-bottom-dock {
+    background: linear-gradient(180deg, #18181b 0%, #09090b 100%);
+    border-top: 2px solid #3f3f46;
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bj-betting-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.bj-chips-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Gerçekçi Casino Çipleri */
+.bj-chip-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    border: 3px dashed rgba(255, 255, 255, 0.85);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6), inset 0 0 4px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.bj-chip-btn:hover {
+    transform: translateY(-4px) scale(1.1);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.8);
+}
+
+.bj-chip-btn.chip-10 { background: radial-gradient(circle, #3b82f6, #1d4ed8); color: white; }
+.bj-chip-btn.chip-25 { background: radial-gradient(circle, #10b981, #047857); color: white; }
+.bj-chip-btn.chip-50 { background: radial-gradient(circle, #ef4444, #b91c1c); color: white; }
+.bj-chip-btn.chip-100 { background: radial-gradient(circle, #18181b, #000000); color: #facc15; border-color: #facc15; }
+.bj-chip-btn.chip-250 { background: radial-gradient(circle, #8b5cf6, #5b21b6); color: white; }
+.bj-chip-btn.chip-500 { background: radial-gradient(circle, #f59e0b, #b45309); color: white; border-color: #fef08a; }
+
+/* Alt Kontrol İstasyonu & Buton Barları */
+.bj-control-bar {
+    width: 100%;
+    margin-top: 14px;
+    padding: 14px 18px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1.5px solid rgba(250, 204, 21, 0.35);
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+}
+
+.bj-action-btn, .bj-btn {
+    border: none;
+    border-radius: 10px;
+    font-weight: 800;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    box-sizing: border-box;
+}
+
+/* Aksiyon Butonları */
+.bj-action-btn.btn-primary, .bj-btn-primary {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #0f172a;
+    font-weight: 900;
+    font-size: 14px;
+    border: 1.5px solid #fef08a;
+    border-radius: 10px;
+    padding: 10px 22px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+    transition: all 0.2s ease;
+}
+
+.bj-action-btn.btn-primary:hover, .bj-btn-primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.65);
+}
+
+.bj-btn-danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    font-weight: 800;
+    font-size: 12px;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.bj-action-btn.btn-secondary, .bj-btn-secondary {
+    background: #3f3f46;
+    color: #e4e4e7;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.bj-action-btn.btn-secondary:hover, .bj-btn-secondary:hover {
+    background: #475569;
+    color: white;
+}
+
+/* Oyun Sırası Hamle Butonları (Kart Çek, Dur, İkiye Katla) */
+.bj-playing-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 6px 0;
+}
+
+.bj-action-btn.btn-hit, .bj-btn-hit {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    font-size: 15px;
+    font-weight: 900;
+    border: 1.5px solid #6ee7b7;
+    border-radius: 12px;
+    padding: 12px 30px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+}
+
+.bj-action-btn.btn-hit:hover, .bj-btn-hit:hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.75);
+}
+
+.bj-action-btn.btn-stand, .bj-btn-stand {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    font-size: 15px;
+    font-weight: 900;
+    border: 1.5px solid #fca5a5;
+    border-radius: 12px;
+    padding: 12px 30px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(239, 68, 68, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+}
+
+.bj-action-btn.btn-stand:hover, .bj-btn-stand:hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.75);
+}
+
+.bj-btn-double {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+    color: white;
+    font-size: 14px;
+    font-weight: 900;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.bj-btn-double:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 8px 22px rgba(139, 92, 246, 0.7);
+}
+
+.bj-btn-double:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Bildirim Toast */
+.bj-toast {
+    position: fixed;
+    top: 75px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-30px);
+    background: rgba(15, 23, 42, 0.95);
+    color: #fef08a;
+    border: 2px solid #facc15;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.85);
+    padding: 10px 22px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 800;
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.bj-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 768px) {
+    .bj-seats-container {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .bj-felt-table {
+        border-radius: 16px;
+        min-height: auto;
+        padding: 14px 10px;
+    }
+    .bj-card {
+        width: 40px;
+        height: 60px;
+    }
+}
+
+/* ==========================================================================
+   BATAK SET SİSTEMİ & YAZBOZ ÇETELE STİLLERİ
+   ========================================================================== */
+.batak-tab-btn {
+    padding: 6px 14px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #475569;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease-in-out;
+}
+
+.batak-tab-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.batak-tab-btn.active {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    color: white;
+    border-color: #1d4ed8;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.batak-tab-btn.grand {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #b45309;
+}
+
+.batak-tab-btn.grand.active {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    color: white;
+    border-color: #92400e;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.4);
+}
+
+.batak-yazboz-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+    border: 2px solid #1c1917;
+    font-size: 13px;
+    text-align: center;
+}
+
+.batak-yazboz-table th {
+    background: #f8fafc;
+    color: #0f172a;
+    font-weight: 900;
+    padding: 8px 10px;
+    border: 1px solid #cbd5e1;
+    border-bottom: 2px solid #1c1917;
+}
+
+.batak-yazboz-table td {
+    padding: 7px 10px;
+    border: 1px solid #e2e8f0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.batak-yazboz-table tr:nth-child(even) td {
+    background: #fcfcfc;
+}
+
+.batak-yazboz-table tr.total-row td {
+    background: #f1f5f9;
+    font-weight: 900;
+    font-size: 14px;
+    border-top: 2px solid #1c1917;
+    border-bottom: 1px solid #cbd5e1;
+    color: #0f172a;
+}
+
+.batak-yazboz-table tr.rank-row td {
+    background: #fffbeb;
+    font-weight: 900;
+    color: #b45309;
+    border-bottom: 1px solid #fde68a;
+}
+
+.batak-yazboz-table tr.points-row td {
+    background: #f0fdf4;
+    font-weight: 900;
+    font-size: 14px;
+    color: #15803d;
+    border-bottom: 2px solid #1c1917;
+}
+
+.tie-breaker-badge {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: white;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-weight: 900;
+    font-size: 12px;
+    animation: tieGlowPulse 1.2s infinite alternate ease-in-out;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.7);
+    display: inline-block;
+}
+
+@keyframes tieGlowPulse {
+    0% {
+        transform: scale(0.98);
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+    }
+    100% {
+        transform: scale(1.04);
+        box-shadow: 0 0 18px rgba(239, 68, 68, 0.9), 0 0 25px rgba(250, 204, 21, 0.6);
+    }
+}
+
+/* --- DENİZDEN BABAM ÇIKTI (BABA PETİ & ANİMASYONLARI) --- */
+@keyframes slideDownNotice {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -40px);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.father-pet-speech-bubble {
+    position: absolute;
+    background: #ffffff;
+    color: #1e293b;
+    border-radius: 12px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 100;
+    border: 2px solid #f59e0b;
+}
+
+.father-pet-speech-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px 6px 0;
+    border-style: solid;
+    border-color: #ffffff transparent;
+    display: block;
+    width: 0;
+}
+
+/* ============================================================================ */
+/* 25. VIP AVRUPA RULETİ (EUROPEAN ROULETTE 0-36)                               */
+/* ============================================================================ */
+.roulette-table-container {
+    width: 950px;
+    max-width: 96vw;
+    max-height: 94vh;
+    background: radial-gradient(ellipse at 50% 30%, #064e3b 0%, #022c22 65%, #011611 100%);
+    border: 3px solid #facc15;
+    border-radius: 20px;
+    box-shadow: 0 0 50px rgba(16, 185, 129, 0.35), 0 25px 60px rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    animation: zoomInVictory 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.roulette-top-bar {
+    padding: 12px 20px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(6, 78, 59, 0.75));
+    border-bottom: 2px solid rgba(250, 204, 21, 0.4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.roulette-history-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    min-height: 28px;
+}
+
+.roulette-hist-pill {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+.roulette-hist-pill.green { background: #10b981; }
+.roulette-hist-pill.red { background: #ef4444; }
+.roulette-hist-pill.black { background: #1e293b; }
+
+.roulette-main-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    gap: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.roulette-wheel-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 8px;
+}
+
+.roulette-result-banner {
+    position: absolute;
+    bottom: -10px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid #facc15;
+    border-radius: 12px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 20;
+}
+
+.roulette-result-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    color: white;
+    font-size: 18px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+}
+
+.roulette-felt-grid-wrapper {
+    background: linear-gradient(145deg, #065f46, #044e39);
+    border: 3px solid #ca8a04;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.7), 0 8px 20px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    user-select: none;
+}
+
+.roulette-grid {
+    display: flex;
+    gap: 4px;
+}
+
+.roulette-cell {
+    border: 1px solid rgba(250, 204, 21, 0.45);
+    color: white;
+    font-weight: 900;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.1s ease, filter 0.1s ease, background 0.1s ease;
+    border-radius: 4px;
+}
+
+.roulette-cell:hover {
+    filter: brightness(1.25);
+    transform: scale(1.04);
+    z-index: 5;
+    border-color: #fde047;
+}
+
+.roulette-cell.has-bet {
+    outline: 2px solid #facc15;
+}
+
+.roulette-cell.zero-cell {
+    width: 38px;
+    background: #10b981;
+    font-size: 20px;
+    border-radius: 6px 0 0 6px;
+}
+
+.roulette-numbers-board {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.roulette-row {
+    display: flex;
+    gap: 4px;
+}
+
+.roulette-numbers-board .roulette-cell {
+    width: 44px;
+    height: 36px;
+}
+
+.roulette-numbers-board .roulette-cell.red {
+    background: linear-gradient(135deg, #dc2626, #991b1b);
+}
+
+.roulette-numbers-board .roulette-cell.black {
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+}
+
+.roulette-col-bets {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.roulette-col-bets .roulette-cell {
+    width: 42px;
+    height: 36px;
+    background: rgba(15, 23, 42, 0.6);
+    color: #facc15;
+    font-size: 11px;
+}
+
+.roulette-dozens-row {
+    display: flex;
+    gap: 4px;
+    margin-left: 42px;
+}
+
+.roulette-dozens-row .roulette-cell {
+    flex: 1;
+    height: 32px;
+    background: rgba(15, 23, 42, 0.7);
+    color: #fef08a;
+    font-size: 11.5px;
+}
+
+.roulette-outside-row {
+    display: flex;
+    gap: 4px;
+    margin-left: 42px;
+}
+
+.roulette-outside-row .roulette-cell {
+    flex: 1;
+    height: 34px;
+    background: rgba(15, 23, 42, 0.75);
+    font-size: 11px;
+}
+
+.roulette-outside-row .red-color-bet {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: white;
+}
+
+.roulette-outside-row .black-color-bet {
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    color: white;
+}
+
+.cell-chip-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fde047 30%, #ca8a04 100%);
+    color: #0f172a;
+    font-size: 10px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #ffffff;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.8);
+    pointer-events: none;
+    animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.roulette-bottom-bar {
+    padding: 12px 20px;
+    background: linear-gradient(180deg, #09090b 0%, #030712 100%);
+    border-top: 2px solid #ca8a04;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.roulette-chip {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    border: 3px dashed rgba(255, 255, 255, 0.85);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.roulette-chip:hover {
+    transform: translateY(-3px) scale(1.1);
+}
+
+.roulette-chip.selected {
+    transform: translateY(-5px) scale(1.15);
+    box-shadow: 0 0 15px #facc15, 0 6px 12px rgba(0,0,0,0.8);
+    border-color: #facc15;
+}
+
+.chip-10 { background: radial-gradient(circle, #38bdf8 0%, #0284c7 100%); color: white; }
+.chip-50 { background: radial-gradient(circle, #ef4444 0%, #b91c1c 100%); color: white; }
+.chip-100 { background: radial-gradient(circle, #10b981 0%, #047857 100%); color: white; }
+.chip-250 { background: radial-gradient(circle, #a855f7 0%, #7e22ce 100%); color: white; }
+.chip-1000 { background: radial-gradient(circle, #f59e0b 0%, #b45309 100%); color: #0f172a; }
+.chip-5000 { background: radial-gradient(circle, #f43f5e 0%, #881337 100%); color: white; }
+
+.roulette-spin-btn {
+    padding: 10px 28px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    font-size: 15px;
+    font-weight: 900;
+    border: 2px solid #34d399;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.5);
+    transition: all 0.15s ease;
+}
+
+.roulette-spin-btn:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 6px 22px rgba(16, 185, 129, 0.7);
+}
+
+/* ============================================================================ */
+/* 26. ⚡ DEDENİN ŞİMŞEK SLOTU 777 (3-REEL VEGAS SLOT)                         */
+/* ============================================================================ */
+.slot-cabinet {
+    width: 620px;
+    max-width: 95vw;
+    background: radial-gradient(ellipse at 50% 20%, #1e1b4b 0%, #0f172a 70%, #020617 100%);
+    border: 4px solid #facc15;
+    border-radius: 22px;
+    box-shadow: 0 0 50px rgba(250, 204, 21, 0.4), 0 25px 60px rgba(0, 0, 0, 0.95);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    position: relative;
+    animation: zoomInVictory 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.slot-top-bar {
+    padding: 12px 20px;
+    background: linear-gradient(180deg, #312e81 0%, #1e1b4b 100%);
+    border-bottom: 3px solid #f59e0b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.slot-title {
+    font-size: 18px;
+    font-weight: 900;
+    color: #facc15;
+    text-shadow: 0 0 12px rgba(250, 204, 21, 0.8);
+    letter-spacing: 0.8px;
+}
+
+.slot-top-bar.jackpot-flash {
+    animation: jackpotStrobe 0.4s infinite alternate;
+}
+
+@keyframes jackpotStrobe {
+    0% { background: #facc15; filter: drop-shadow(0 0 30px #facc15); }
+    100% { background: #ef4444; filter: drop-shadow(0 0 30px #ef4444); }
+}
+
+.slot-body {
+    padding: 24px 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    background: radial-gradient(circle at center, #090d16 0%, #020617 100%);
+    position: relative;
+}
+
+.slot-window {
+    width: 380px;
+    height: 170px;
+    background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+    border: 4px solid #ca8a04;
+    border-radius: 14px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 6px;
+    box-shadow: inset 0 0 25px rgba(0,0,0,0.9), 0 10px 30px rgba(0,0,0,0.8);
+    position: relative;
+    overflow: hidden;
+}
+
+.slot-payline {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(250, 204, 21, 0.4);
+    box-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 10;
+}
+
+.slot-payline.active-win {
+    background: #4ade80;
+    box-shadow: 0 0 18px #4ade80, 0 0 30px #22c55e;
+    height: 4px;
+    animation: paylinePulse 0.5s infinite alternate;
+}
+
+@keyframes paylinePulse {
+    0% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+.slot-reel-viewport {
+    width: 105px;
+    height: 100%;
+    background: linear-gradient(180deg, #18181b 0%, #27272a 50%, #18181b 100%);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 8px 15px rgba(0,0,0,0.8), inset 0 -8px 15px rgba(0,0,0,0.8);
+}
+
+.slot-reel-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translateY(-80px);
+}
+
+.slot-reel-strip.spinning {
+    animation: reelSpinBlur 0.18s linear infinite;
+    filter: blur(2.5px);
+}
+
+@keyframes reelSpinBlur {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-240px); }
+}
+
+.slot-symbol-item {
+    width: 105px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.slot-sym-icon {
+    font-size: 36px;
+    line-height: 1;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+}
+
+.slot-sym-name {
+    font-size: 9.5px;
+    font-weight: 800;
+    color: #cbd5e1;
+    margin-top: 2px;
+}
+
+.slot-symbol-item.win-pulse {
+    animation: symbolWinHop 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes symbolWinHop {
+    0% { transform: scale(1); filter: drop-shadow(0 0 4px #facc15); }
+    100% { transform: scale(1.15); filter: drop-shadow(0 0 16px #facc15); }
+}
+
+/* Mekanik Çevirme Kolu (Lever) */
+.slot-lever-housing {
+    width: 32px;
+    height: 140px;
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.slot-lever-pivot {
+    width: 24px;
+    height: 24px;
+    background: radial-gradient(circle, #ca8a04 0%, #78350f 100%);
+    border: 2px solid #fde047;
+    border-radius: 50%;
+    position: absolute;
+    bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.8);
+}
+
+.slot-lever-arm {
+    width: 8px;
+    height: 80px;
+    background: linear-gradient(90deg, #94a3b8 0%, #f1f5f9 50%, #64748b 100%);
+    border-radius: 4px;
+    position: absolute;
+    bottom: 30px;
+    transform-origin: bottom center;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.6);
+}
+
+.slot-lever-knob {
+    width: 26px;
+    height: 26px;
+    background: radial-gradient(circle at 35% 35%, #ef4444 0%, #991b1b 100%);
+    border: 2px solid #fecaca;
+    border-radius: 50%;
+    position: absolute;
+    top: 15px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slot-win-banner {
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.95), rgba(202, 138, 4, 0.95));
+    border: 2px solid #fef08a;
+    border-radius: 12px;
+    padding: 10px 20px;
+    margin: 0 20px 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #0f172a;
+    box-shadow: 0 10px 30px rgba(250, 204, 21, 0.5);
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.slot-control-bar {
+    padding: 14px 20px;
+    background: linear-gradient(180deg, #09090b 0%, #030712 100%);
+    border-top: 2px solid #ca8a04;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.slot-bet-btn {
+    padding: 6px 12px;
+    background: rgba(30, 41, 59, 0.8);
+    color: white;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.slot-bet-btn:hover {
+    background: #334155;
+    border-color: #94a3b8;
+}
+
+.slot-bet-btn.active {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border-color: #fde047;
+    color: #0f172a;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+}
+
+.slot-max-btn {
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: white;
+    border: 1px solid #f87171;
+    border-radius: 6px;
+    font-weight: 900;
+    font-size: 11px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.slot-max-btn:hover {
+    transform: scale(1.05);
+}
+
+.slot-secondary-btn {
+    padding: 8px 14px;
+    background: rgba(30, 41, 59, 0.9);
+    color: #cbd5e1;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.slot-secondary-btn:hover {
+    background: #334155;
+    color: white;
+}
+
+.slot-secondary-btn.active {
+    background: #dc2626;
+    border-color: #f87171;
+    color: white;
+    animation: pulse 1s infinite;
+}
+
+.slot-spin-btn {
+    padding: 10px 32px;
+    background: linear-gradient(135deg, #facc15 0%, #eab308 50%, #ca8a04 100%);
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: 900;
+    border: 2px solid #fef08a;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(250, 204, 21, 0.6);
+    transition: all 0.15s ease;
+}
+
+.slot-spin-btn:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 24px rgba(250, 204, 21, 0.9);
+}
+
+.slot-paytable-panel {
+    background: rgba(15, 23, 42, 0.98);
+    border-top: 2px solid #facc15;
+    padding: 12px 18px;
+    flex-direction: column;
+}
+
+.slot-paytable-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.paytable-item {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 6px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+}
+
+.paytable-item.jackpot {
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(202, 138, 4, 0.3));
+    border-color: #facc15;
+    color: #fde047;
+}
+
+.paytable-item.cherry {
+    color: #fca5a5;
 }
